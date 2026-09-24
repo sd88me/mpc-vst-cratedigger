@@ -1,0 +1,32 @@
+# Build Crate Digger into a DRAFT release (cratedigger-vst-v<version>) with mpc-vst-plugins' shared
+# workflow: Actions -> "VST release (draft)" -> Run workflow. Then install that draft's zip on a
+# device, smoke-test it, and publish the draft (see mpc-vst-plugins docs/RELEASING.md).
+# dry_run builds the zip and skin previews as run artifacts only.
+name: VST release (draft)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, e.g. 1.0.1
+        required: true
+      dry_run:
+        description: Build only (zip + skin previews as run artifacts), no draft release
+        type: boolean
+        default: false
+
+jobs:
+  crate-digger:
+    uses: sd88me/mpc-vst-plugins/.github/workflows/vst-release.yml@8bfe948f02ca065d2f5fe10c93f97422e243eb7a
+    permissions:
+      contents: write
+    with:
+      tag: cratedigger-vst-v${{ inputs.version }}
+      version: ${{ inputs.version }}
+      tools_ref: 8bfe948f02ca065d2f5fe10c93f97422e243eb7a
+      vst_dir: vst
+      build: vst/release_build.sh
+      extra: vst/build/engine/bin:vst/cratedigger/bin
+      zig: 0.14.1
+      about: Dig for records by genre, style, decade and country on Discogs, then stream and play them into your MPC track. Needs a network connection.
+      dry_run: ${{ inputs.dry_run }}
