@@ -5,18 +5,18 @@
 #   vst/build/pluginlist-entry.xml
 #   vst/build/engine/bin/                          -> payload/vst/cratedigger/bin (release.py --extra):
 #       yt-dlp, ffmpeg/ffprobe, the private Python 3.11 and zlib module, yt_dlp_daemon.py
-# Needs Docker with armhf emulation, zig, python3 with Pillow, a C compiler, and a force-shadow
-# checkout for the skin artwork renderer (FORCE_SHADOW).
+# Needs Docker with armhf emulation, zig, python3 with Pillow, a C compiler, and an mpc-vst-plugins
+# checkout (MPC_VST) for its vendored skin artwork renderer.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-FORCE_SHADOW="${FORCE_SHADOW:?set FORCE_SHADOW to a force-shadow checkout}"
+MPC_VST="${MPC_VST:?set MPC_VST to an mpc-vst-plugins checkout}"
 
 scripts/build-deps.sh
 scripts/build-pyzlib.sh
 scripts/build-python.sh
 vst/build.sh
 
-gcc -O2 -I"$FORCE_SHADOW/tools" -o vst/build/shadow_art vst/shadow_art.c -lm
+gcc -O2 -I"$MPC_VST/tools/vendor/force-shadow/tools" -o vst/build/shadow_art vst/shadow_art.c -lm
 python3 vst/gen_skin.py
 
 rm -rf vst/build/engine
