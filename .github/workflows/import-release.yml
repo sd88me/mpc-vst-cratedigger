@@ -1,0 +1,29 @@
+# One-off: copy the cratedigger-vst-v1.0.0 release (title, notes, assets)
+# from sd88me/force-cratedigger, where it was published before the VST plugin
+# moved to this repo, and create its tag here at the same commit. Removed
+# again once it has run.
+name: Import VST release from force-cratedigger
+
+on: workflow_dispatch
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: cratedigger-vst-v1.0.0
+      SRC: sd88me/force-cratedigger
+      SHA: 6dcf939b7f019b8498c30dbe01f4f28f9e5edea5
+    steps:
+      - name: Copy the release
+        run: |
+          gh release view "$TAG" -R "$SRC" --json name,body > rel.json
+          gh release download "$TAG" -R "$SRC" -D assets
+          ls -la assets
+          jq -r .body rel.json > notes.md
+          gh release create "$TAG" assets/* -R "$GITHUB_REPOSITORY" \
+            --target "$SHA" --title "$(jq -r .name rel.json)" --notes-file notes.md
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json tagName,assets --jq '{tag: .tagName, assets: [.assets[] | {name, size}]}'
