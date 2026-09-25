@@ -1,4 +1,4 @@
-# mpc-vst-cratedigger
+# Crate Digger (MPC VST PLugin)
 
 **Crate Digger** — a native MPC OS VST2 instrument plugin for Akai MPC
 standalone devices (Force, MPC Live/Live II, One, X, Key 61): dig for
