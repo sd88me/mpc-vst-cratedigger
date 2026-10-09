@@ -27,9 +27,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
-OUT_DIR="$REPO_ROOT/build/deps/bin"
-WORK_DIR="$REPO_ROOT/build/deps/work"
-MANIFEST_PATH="$REPO_ROOT/build/deps/manifest.json"
+# TARGET_ARCH=aarch64 (Gen2 MPC devices) fetches johnvansickle's arm64 ffmpeg into build/deps-aarch64; default armv7 (Gen1 and Force).
+# (yt-dlp is the same architecture-independent zipapp either way. Deno is not bundled on either.)
+case "${TARGET_ARCH:-armv7}" in
+  armv7)   FF_ARCH="armhf"; DEPS="build/deps";         TARGET_NOTE="armv7l (armhf) — Akai Force and Gen1 MPC" ;;
+  aarch64) FF_ARCH="arm64"; DEPS="build/deps-aarch64"; TARGET_NOTE="aarch64 — Gen2 MPC" ;;
+  *) echo "unknown TARGET_ARCH ${TARGET_ARCH}" >&2; exit 1 ;;
+esac
+OUT_DIR="$REPO_ROOT/$DEPS/bin"
+WORK_DIR="$REPO_ROOT/$DEPS/work"
+MANIFEST_PATH="$REPO_ROOT/$DEPS/manifest.json"
 
 mkdir -p "$OUT_DIR" "$WORK_DIR"
 
@@ -68,14 +75,14 @@ chmod +x "$OUT_DIR/yt-dlp"
 YTDLP_VERSION="$(python3 "$OUT_DIR/yt-dlp" --version 2>/dev/null || echo unknown)"
 echo "-- fetched yt-dlp $YTDLP_VERSION (latest) --"
 
-echo "=== Downloading ffmpeg/ffprobe (johnvansickle.com armhf static) ==="
-FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz"
+echo "=== Downloading ffmpeg/ffprobe (johnvansickle.com $FF_ARCH static) ==="
+FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-$FF_ARCH-static.tar.xz"
 # johnvansickle.com sometimes answers a CI runner with a small non-archive page (HTTP 200), which
 # then fails in tar ("xz: File format not recognized"). Retry, and only accept a valid xz file.
 ffmpeg_ok=0
 for attempt in 1 2 3 4 5; do
-  if curl -fL --retry 3 --retry-delay 5 -o "$WORK_DIR/ffmpeg-armhf.tar.xz" "$FFMPEG_URL" \
-     && xz -t "$WORK_DIR/ffmpeg-armhf.tar.xz" 2>/dev/null; then
+  if curl -fL --retry 3 --retry-delay 5 -o "$WORK_DIR/ffmpeg-$FF_ARCH.tar.xz" "$FFMPEG_URL" \
+     && xz -t "$WORK_DIR/ffmpeg-$FF_ARCH.tar.xz" 2>/dev/null; then
     ffmpeg_ok=1
     break
   fi
@@ -85,8 +92,8 @@ done
 [ "$ffmpeg_ok" = 1 ] || { echo "Could not download a valid ffmpeg archive from $FFMPEG_URL"; exit 1; }
 rm -rf "$WORK_DIR/ffmpeg-extract"
 mkdir -p "$WORK_DIR/ffmpeg-extract"
-tar -xJf "$WORK_DIR/ffmpeg-armhf.tar.xz" -C "$WORK_DIR/ffmpeg-extract"
-FF_DIR="$(find "$WORK_DIR/ffmpeg-extract" -maxdepth 1 -type d -name 'ffmpeg-*armhf*' | head -n 1)"
+tar -xJf "$WORK_DIR/ffmpeg-$FF_ARCH.tar.xz" -C "$WORK_DIR/ffmpeg-extract"
+FF_DIR="$(find "$WORK_DIR/ffmpeg-extract" -maxdepth 1 -type d -name "ffmpeg-*$FF_ARCH*" | head -n 1)"
 if [ -z "$FF_DIR" ]; then
   echo "Failed to locate extracted ffmpeg directory"
   exit 1
@@ -97,11 +104,11 @@ chmod +x "$OUT_DIR/ffmpeg" "$OUT_DIR/ffprobe"
 "$OUT_DIR/ffmpeg" -version | head -n1 || echo "(ffmpeg is armhf — this host can't exec it to verify; that's expected off-device)"
 
 echo "=== Writing dependency manifest ==="
-python3 - "$OUT_DIR" "$MANIFEST_PATH" "$YTDLP_VERSION" "$FFMPEG_URL" <<'PY'
+python3 - "$OUT_DIR" "$MANIFEST_PATH" "$YTDLP_VERSION" "$FFMPEG_URL" "$TARGET_NOTE" <<'PY'
 import hashlib, json, os, sys
 from datetime import datetime, timezone
 
-out_dir, manifest_path, ytdlp_version, ffmpeg_url = sys.argv[1:]
+out_dir, manifest_path, ytdlp_version, ffmpeg_url, target_note = sys.argv[1:]
 
 def sha256(path):
     h = hashlib.sha256()
@@ -115,7 +122,7 @@ def sha256(path):
 
 manifest = {
     "generated_at": datetime.now(timezone.utc).isoformat(),
-    "target_arch": "armv7l (armhf) — Akai Force",
+    "target_arch": target_note,
     "artifacts": {
         "yt-dlp": {
             "source_repo": "https://github.com/yt-dlp/yt-dlp",
@@ -136,7 +143,7 @@ manifest = {
             "sha256": sha256(os.path.join(out_dir, "ffprobe")),
         },
         "deno": {
-            "note": "NOT bundled — no official armv7/armhf Linux build exists. "
+            "note": "NOT bundled — no official armv7/armhf Linux build exists (it is left out of the aarch64 build too, to match). "
                      "yt-dlp falls back to its own JS interpreter.",
         },
     },

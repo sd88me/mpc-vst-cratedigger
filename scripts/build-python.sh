@@ -45,15 +45,21 @@ cd "$(dirname "$0")/.."
 
 PBS_RELEASE_TAG="20260901"
 PYTHON_VERSION="3.11.16"
-PYTHON_ASSET="cpython-${PYTHON_VERSION}+${PBS_RELEASE_TAG}-armv7-unknown-linux-gnueabihf-install_only_stripped.tar.gz"
+# TARGET_ARCH=aarch64 (Gen2 MPC devices) fetches the aarch64 build into build/deps-aarch64 instead; default armv7 (Gen1 and Force).
+case "${TARGET_ARCH:-armv7}" in
+  armv7)   PBS_TRIPLE="armv7-unknown-linux-gnueabihf"; DEPS="build/deps" ;;
+  aarch64) PBS_TRIPLE="aarch64-unknown-linux-gnu";     DEPS="build/deps-aarch64" ;;
+  *) echo "unknown TARGET_ARCH ${TARGET_ARCH}" >&2; exit 1 ;;
+esac
+PYTHON_ASSET="cpython-${PYTHON_VERSION}+${PBS_RELEASE_TAG}-${PBS_TRIPLE}-install_only_stripped.tar.gz"
 PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PBS_RELEASE_TAG}/${PYTHON_ASSET}"
 
-OUT_DIR="$PWD/build/deps/bin"
-WORK_DIR="$PWD/build/deps/work/python"
+OUT_DIR="$PWD/$DEPS/bin"
+WORK_DIR="$PWD/$DEPS/work/python"
 rm -rf "$WORK_DIR" "$OUT_DIR/python3"
 mkdir -p "$WORK_DIR" "$OUT_DIR"
 
-echo "=== Fetching Python ${PYTHON_VERSION} (armv7-unknown-linux-gnueabihf) ==="
+echo "=== Fetching Python ${PYTHON_VERSION} (${PBS_TRIPLE}) ==="
 curl -fsSL -o "$WORK_DIR/python.tar.gz" "$PYTHON_URL"
 tar -xzf "$WORK_DIR/python.tar.gz" -C "$WORK_DIR"
 # python-build-standalone always extracts to a top-level "python/" dir.
