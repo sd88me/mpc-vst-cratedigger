@@ -65,6 +65,12 @@ tar -xzf "$WORK_DIR/python.tar.gz" -C "$WORK_DIR"
 # python-build-standalone always extracts to a top-level "python/" dir.
 mv "$WORK_DIR/python" "$OUT_DIR/python3"
 rm -rf "$WORK_DIR"
+# share/terminfo is ncurses' terminal database, bundled wholesale and unused here (no curses/readline UI in this
+# addon). Found 2026-10-10 from a real Gen2 install failure: ~25 of its entries are case-only pairs (e.g.
+# terminfo/E/Eterm vs terminfo/e/eterm), which collide into one file on a case-insensitive filesystem - the
+# exFAT card/drive a Gen2 user's Synths folder is commonly on (see docs/GEN2.md in mpc-vst-plugins). That silently
+# corrupts one of the pair on copy and trips install.sh's SHA256SUMS check. Strip it instead of shipping it.
+rm -rf "$OUT_DIR/python3/share/terminfo"
 
 echo "-- fetched --"
 file "$OUT_DIR/python3/bin/python3.11"
