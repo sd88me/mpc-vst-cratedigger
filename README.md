@@ -120,6 +120,21 @@ vst/build_skin.sh          # build the MPC skin into vst/build/skin/ (Docker; ne
 libs, and highest required glibc version — check those against the
 target device before shipping.
 
+### Gen2 MPC devices (aarch64)
+
+Gen2 devices are 64-bit, so they need their own build (offline-tested only: the plugin loads and renders audio, and the bundled
+Python, yt-dlp and ffmpeg run, in an arm64 container; not yet run on a Gen2 unit). `TARGET_ARCH=aarch64` selects it
+(`arm64v8/gcc:12-bookworm`, glibc 2.36; Gen2 runs MPC OS 3.x only, so no 2.x ceiling and no pyzlib step):
+
+```sh
+TARGET_ARCH=aarch64 ./scripts/build-deps.sh     # aarch64 ffmpeg, into build/deps-aarch64
+TARGET_ARCH=aarch64 ./scripts/build-python.sh   # aarch64 Python 3.11
+TARGET_ARCH=aarch64 ./vst/build.sh              # vst/build/aarch64/cratedigger.so
+```
+
+`TARGETS="armv7 aarch64" vst/release_build.sh` builds both sets, and mpc-vst-plugins' `release.py` makes one zip per CPU
+(`-mpc-armv7.zip`, `-mpc-aarch64.zip`; see its docs/GEN2.md).
+
 ## Installation
 
 **One line, on the device** (needs internet; save your project first):
