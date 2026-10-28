@@ -786,6 +786,12 @@ class CrateDigSession:
         self.filter_style = ""
         self.filter_decade = ""
         self.filter_country = ""
+        self.filter_query = ""     # FIND tab text: Discogs "q", a channel title filter, or the YouTube search itself
+        self.source = "discogs"    # discogs | channel | youtube
+        self.min_len = 0           # YOUTUBE tab, seconds (0 = any): the length window for channel and YouTube picks
+        self.max_len = 0
+        self.music = False         # YouTube search through YouTube Music's songs instead of all of YouTube
+        self.channel = ""          # the channels.txt entry (link, @handle, UC id or playlist) for source=channel
         self.exclude_ids: list = []
         self.pool_size_cache: dict = {}
         self.empty_reason = ""     # why the last get_random_releases() found nothing (set when it returns [])
@@ -825,7 +831,14 @@ class CrateDigSession:
         new_style = data.get("style", "")
         new_decade = data.get("decade", "")
         new_country = data.get("country", "")
+        new_query = clean_field(str(data.get("query", "") or "")).strip()[:80]
+        self.source = str(data.get("source", "") or "discogs")
+        self.channel = str(data.get("channel", "") or "").strip()
+        self.min_len = max(0, int(data.get("min_len", 0) or 0))
+        self.max_len = max(0, int(data.get("max_len", 0) or 0))
+        self.music = bool(int(data.get("music", 0) or 0))
         filters_changed = (
+            new_query != self.filter_query or
             new_genre != self.filter_genre or
             new_style != self.filter_style or
             new_decade != self.filter_decade or
@@ -835,12 +848,15 @@ class CrateDigSession:
         self.filter_style = new_style
         self.filter_decade = new_decade
         self.filter_country = new_country
+        self.filter_query = new_query
         if filters_changed:
             self.exclude_ids = []
             self.pool_size_cache = {}
 
     def _build_search_params(self) -> dict:
         params = {"type": "release", "per_page": "100"}
+        if self.filter_query:
+            params["q"] = self.filter_query
         if self.filter_genre:
             params["genre"] = self.filter_genre
         if self.filter_style:
@@ -857,7 +873,7 @@ class CrateDigSession:
         return params
 
     def _cache_key(self) -> str:
-        return f"{self.filter_genre}|{self.filter_style}|{self.filter_decade}|{self.filter_country}"
+        return f"{self.filter_query}|{self.filter_genre}|{self.filter_style}|{self.filter_decade}|{self.filter_country}"
 
     def _get_pool_size_and_first_page(self, params: dict):
         """Returns (pool_pages, first_page_results, first_page_number).
@@ -890,7 +906,7 @@ class CrateDigSession:
         pool_size, first_results, first_page = self._get_pool_size_and_first_page(params)
         if pool_size == 0:
             self.pool_size_cache.pop(self._cache_key(), None)   # don't remember an empty answer (it may have been a blip)
-            self.empty_reason = "No Discogs releases match these filters"
+            self.empty_reason = "No Discogs releases match these filters or search text"
             return []
 
         errors = []        # every Discogs call that failed and was skipped, so a run of failures isn't reported as "no results"
@@ -1079,16 +1095,7 @@ def samplette_search(session: SampletteSession, count_text: str) -> None:
     write_fields("SEARCH_END", str(n))
 
 
-def cratedig_init(session: CrateDigSession) -> None:
-    write_fields("CRATEDIG_OK")
-
-
-def cratedig_filter(session: CrateDigSession, filter_json: str) -> None:
-    session.set_filter(filter_json)
-    write_fields("CRATEDIG_OK")
-
-
-def cratedig_search(session: CrateDigSession, count_text: str) -> None:
+def discogs_search(session: CrateDigSession, count_text: str) -> None:
     try:
         count = int(count_text)
     except Exception:
@@ -1128,6 +1135,307 @@ def cratedig_search(session: CrateDigSession, count_text: str) -> None:
         write_fields("SEARCH_END", str(n))
     else:
         write_fields("SEARCH_END", "0", session.empty_reason or "Discogs results had no usable video links")
+
+
+# ---------------------------------------------------------------------------
+# YouTube sources for the FIND tab (the filter JSON's "source"). Originally contributed as "Channel Digger" (PR #21); the
+# plugin now reads channels.txt itself and sends the chosen entry as "channel".
+#   channel: random uploads from one channel or playlist (a typed query narrows them to titles containing every word)
+#   youtube: a plain YouTube search for the typed text
+# Accepted channel forms: channel link, @handle, UC... channel ID, or a playlist link.
+# ---------------------------------------------------------------------------
+CHANNEL_CACHE_SECONDS = 24 * 3600
+CHANNEL_WAIT_SECONDS = 10
+CHANNEL_MAX_ITEMS = 500   # newest uploads only; keeps loading quick on the MPC's CPU
+YT_SEARCH_ITEMS = 50
+MIN_TRACK_SECONDS = 45    # Shorts and clips are skipped
+
+_YT = None
+_src = {}
+
+
+def chlog(msg: str) -> None:
+    try:
+        import time
+        with open("/tmp/channel_digger.log", "a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%H:%M:%S')} {msg}\n")
+    except Exception:
+        pass
+
+
+def channel_list_url(v: str) -> str:
+    m = re.search(r"UC[\w-]{22}", v)
+    if m:
+        return "https://www.youtube.com/playlist?list=UU" + m.group(0)[2:]
+    m = re.search(r"[?&]list=([\w-]+)", v)
+    if m:
+        return "https://www.youtube.com/playlist?list=" + m.group(1)
+    if v.startswith("@"):
+        v = "https://www.youtube.com/" + v
+    elif not v.startswith("http"):
+        v = "https://www.youtube.com/@" + v
+    v = v.split("?")[0].rstrip("/")
+    if not re.search(r"/(videos|streams|releases)$", v):
+        v += "/videos"
+    return v
+
+
+def _flatten_entries(data) -> list:
+    out = []
+    if isinstance(data, dict):
+        for e in data.get("entries") or []:
+            if isinstance(e, dict) and e.get("entries"):
+                out.extend(_flatten_entries(e))
+            elif isinstance(e, dict):
+                out.append(e)
+    return out
+
+
+def _track_items(data):
+    """yt-dlp flat-extraction result -> (channel name, [{id, title, channel, duration, url}]), Shorts and clips dropped."""
+    name = ""
+    if isinstance(data, dict):
+        name = clean_field(data.get("channel") or data.get("uploader") or "")
+    items = []
+    seen_ids = set()
+    for e in _flatten_entries(data):
+        vid = clean_field(e.get("id") or "")
+        title = clean_field(e.get("title") or "")
+        link = clean_field(e.get("url") or e.get("webpage_url") or "")
+        if not re.fullmatch(r"[\w-]{11}", vid) or vid in seen_ids or not title:
+            continue
+        if "/shorts/" in link:
+            continue
+        dur = e.get("duration")
+        try:
+            if dur is not None and float(dur) < MIN_TRACK_SECONDS:
+                continue
+        except Exception:
+            pass
+        who = clean_field(e.get("channel") or e.get("uploader") or "")
+        if not name:
+            name = who
+        seen_ids.add(vid)
+        items.append({
+            "id": vid,
+            "title": title,
+            "channel": who,
+            "duration": format_duration(dur),
+            "secs": int(float(dur)) if dur is not None else None,
+            "url": f"https://www.youtube.com/watch?v={vid}",
+        })
+    return name, items
+
+
+def _flat_extract(target: str, limit: int):
+    ensure_ytdlp(_YT)
+    opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "socket_timeout": 15,
+        "extract_flat": True,
+        "playlistend": limit,
+        "extractor_args": {"youtube": {"player_skip": ["js"]}},
+    }
+    with _YT.YoutubeDL(opts) as ydl:
+        return ydl.extract_info(target, download=False)
+
+
+def channel_fetch(url: str):
+    import hashlib
+    import tempfile
+    import time
+
+    key = hashlib.md5(url.encode("utf-8")).hexdigest()[:10]
+    cache_path = os.path.join(tempfile.gettempdir(), f"channel_digger2_{key}.json")   # 2: items carry "secs"
+    try:
+        if time.time() - os.path.getmtime(cache_path) < CHANNEL_CACHE_SECONDS:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cached = json.load(f)
+            if cached.get("items"):
+                return cached["items"], cached.get("name", "")
+    except Exception:
+        pass
+
+    t0 = time.time()
+    chlog(f"fetching {url}")
+    data = _flat_extract(url, CHANNEL_MAX_ITEMS)
+    chlog(f"fetched in {time.time() - t0:.1f}s")
+    name, items = _track_items(data)
+    if not items:
+        raise RuntimeError("no playable videos found on that channel")
+    try:
+        with open(cache_path, "w", encoding="utf-8") as f:
+            json.dump({"name": name, "items": items}, f)
+    except Exception:
+        pass
+    return items, name
+
+
+def channel_state(url: str) -> dict:
+    import threading
+
+    st = _src.get(url)
+    if st is not None and st["error"] and not st["thread"].is_alive():
+        st = None   # last attempt failed: try again on the next search
+    if st is None:
+        st = {"thread": None, "entries": None, "name": "", "error": "", "seen": set()}
+        _src[url] = st
+
+        def worker():
+            try:
+                items, name = channel_fetch(url)
+                st["name"] = name
+                st["entries"] = items
+                chlog(f"ready: {len(items)} tracks from {name!r}")
+            except Exception as exc:
+                st["error"] = describe_error(exc)
+                chlog(f"fetch failed: {exc}")
+
+        st["thread"] = threading.Thread(target=worker, daemon=True)
+        st["thread"].start()
+    return st
+
+
+def _write_picks(picks: list, fallback_channel: str) -> None:
+    write_fields("SEARCH_BEGIN")
+    for e in picks:
+        write_fields("SEARCH_ITEM", e["id"], e["title"], e.get("channel") or fallback_channel, e["duration"], e["url"],
+                     "", "", "", "", "", "", "")
+    write_fields("SEARCH_END", str(len(picks)))
+
+
+def _pick(entries: list, seen: set, count: int) -> list:
+    """count random entries, not repeating earlier picks until the pool runs short."""
+    import random
+    pool = [e for e in entries if e["id"] not in seen]
+    if len(pool) < min(count, len(entries)):
+        seen.clear()
+        pool = list(entries)
+    picks = random.sample(pool, min(count, len(pool)))
+    for e in picks:
+        seen.add(e["id"])
+    return picks
+
+
+def _length_filter(entries: list, min_len: int, max_len: int) -> list:
+    """Keep entries inside the window. A video with no known length (a live stream) is dropped once a limit is set."""
+    if not min_len and not max_len:
+        return entries
+    out = []
+    for e in entries:
+        secs = e.get("secs")
+        if secs is None or (min_len and secs < min_len) or (max_len and secs > max_len):
+            continue
+        out.append(e)
+    return out
+
+
+def _window_text(min_len: int, max_len: int) -> str:
+    if min_len and max_len:
+        return f" between {min_len // 60} and {max_len // 60} min"
+    if max_len:
+        return f" under {max_len // 60} min"
+    return f" over {min_len // 60} min" if min_len else ""
+
+
+def _words_match(title: str, query: str) -> bool:
+    t = title.lower()
+    return all(w in t for w in query.lower().split())
+
+
+def _result_count(count_text: str) -> int:
+    try:
+        count = int(count_text)
+    except Exception:
+        count = 8
+    return max(1, min(count, 16))
+
+
+def channel_search(count_text: str, setting: str, query: str = "", min_len: int = 0, max_len: int = 0) -> None:
+    count = _result_count(count_text)
+    if not setting:
+        write_fields("SEARCH_BEGIN")
+        write_fields("SEARCH_END", "0", "No channel selected - add one to channels.txt")
+        return
+    st = channel_state(channel_list_url(setting))
+    if st["entries"] is None and st["thread"].is_alive():
+        st["thread"].join(CHANNEL_WAIT_SECONDS)
+
+    entries = st["entries"]
+    if entries is None:
+        if st["error"]:
+            write_fields("ERROR", st["error"])
+        else:
+            write_fields("SEARCH_BEGIN")
+            write_fields("SEARCH_END", "0", "Still loading the channel, press search again")
+        return
+    if query:
+        entries = [e for e in entries if _words_match(e["title"], query)]
+        if not entries:
+            write_fields("SEARCH_BEGIN")
+            write_fields("SEARCH_END", "0", f"Nothing on {st['name'] or 'that channel'} matches '{query}'")
+            return
+    entries = _length_filter(entries, min_len, max_len)
+    if not entries:
+        write_fields("SEARCH_BEGIN")
+        write_fields("SEARCH_END", "0", f"No uploads{_window_text(min_len, max_len)} on {st['name'] or 'that channel'}")
+        return
+    _write_picks(_pick(entries, st["seen"], count), st["name"])
+
+
+def youtube_search(count_text: str, query: str, min_len: int = 0, max_len: int = 0, music: bool = False) -> None:
+    count = _result_count(count_text)
+    if not query:
+        write_fields("SEARCH_BEGIN")
+        write_fields("SEARCH_END", "0", "Type something to search YouTube for")
+        return
+    import time
+    import urllib.parse
+    # music: YouTube Music's song search (real tracks only, but its results carry no length or uploader, so the window can't apply)
+    key = ("ytmusic:" if music else "ytsearch:") + query.lower()
+    st = _src.setdefault(key, {"entries": None, "seen": set(), "at": 0.0})
+    if st["entries"] is None or time.time() - st["at"] > 600:
+        target = ("https://music.youtube.com/search?q=" + urllib.parse.quote_plus(query) + "#songs") if music \
+            else f"ytsearch{YT_SEARCH_ITEMS}:{query}"
+        try:
+            t0 = time.time()
+            data = _flat_extract(target, YT_SEARCH_ITEMS)
+            chlog(f"{'youtube music' if music else 'youtube'} search {query!r} in {time.time() - t0:.1f}s")
+        except Exception as exc:
+            chlog(f"youtube search failed: {exc}")
+            write_fields("ERROR", describe_error(exc))
+            return
+        _, st["entries"] = _track_items(data)
+        st["at"] = time.time()
+    entries = st["entries"] if music else _length_filter(st["entries"], min_len, max_len)
+    if not entries:
+        why = "" if music else _window_text(min_len, max_len)
+        write_fields("SEARCH_BEGIN")
+        write_fields("SEARCH_END", "0", f"{'YouTube Music' if music else 'YouTube'} found nothing{why} for '{query}'")
+        return
+    _write_picks(_pick(entries, st["seen"], count), "")
+
+
+def cratedig_init(session) -> None:
+    write_fields("CRATEDIG_OK")
+
+
+def cratedig_filter(session, filter_json: str) -> None:
+    try:
+        session.set_filter(filter_json)
+    except Exception as exc:
+        chlog(f"bad filter: {exc}")
+    write_fields("CRATEDIG_OK")
+
+
+def cratedig_search(session, count_text: str) -> None:
+    if session.source == "channel":
+        channel_search(count_text, session.channel, session.filter_query, session.min_len, session.max_len)
+    elif session.source == "youtube":
+        youtube_search(count_text, session.filter_query, session.min_len, session.max_len, session.music)
+    else:
+        discogs_search(session, count_text)
 
 
 def parse_search_parts(parts: list):
@@ -1221,6 +1529,8 @@ def main() -> int:
     except Exception:
         yt_dlp_mod = None
 
+    global _YT
+    _YT = yt_dlp_mod
     samplette = SampletteSession()
     config = load_provider_config()
     # Schwung-manager managed secret takes precedence, then legacy provider

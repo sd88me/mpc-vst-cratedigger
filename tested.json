@@ -18,5 +18,12 @@
   "firmware": "MPC OS 3.9.1",
   "date": "2026-10-13",
   "note": "Release zip (armv7) installed with its install.sh: skin loaded, search returned 12 results, a track streamed, rewind and Transport Sync worked. aarch64 not tested."
+ },
+ {
+  "version": "1.2.0",
+  "device": "MPC Live III (Gen2)",
+  "firmware": "az01 base 5.0.17",
+  "date": "2026-10-28",
+  "note": "Release zip (aarch64) installed with its install.sh -t /nvme/Synths: registered under pluginList-arm-64bit and loads. The bundled Python reaches api.discogs.com over TLS. The install failure reported on Gen2 was not reproduced here."
  }
 ]
