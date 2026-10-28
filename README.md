@@ -186,28 +186,25 @@ public rate limit). For 60/min, generate a free personal access token at
 { "providers": { "cratedig": { "token": "YOUR_DISCOGS_PERSONAL_TOKEN" } } }
 ```
 
-## YouTube channels (optional)
+## FIND: text search and YouTube (optional)
 
-Besides Discogs, SEARCH can list random uploads from YouTube channels. List them in `channels.txt`
-in the engine folder, next to `bin/` (for example `/sdcard/vst/cratedigger/channels.txt`), one per
-line (see `docs/channels.example.txt`):
+The FIND tab adds three ways to dig, chosen with SOURCE:
 
-```
-2020s = https://www.youtube.com/@handle | Name
-2010s = @anotherchannel
-any = UCxxxxxxxxxxxxxxxxxxxxxx | Some Channel
-```
+- **DISCOGS** (the default) is the usual random dig, plus an optional search text: type an artist or title and SEARCH
+  digs random releases that match it (and the filters on the FILTERS tab).
+- **CHANNEL** picks random uploads from one of your YouTube channels or playlists. With a search text it only
+  picks uploads whose title contains every word of it.
+- **YOUTUBE** searches YouTube for the text and picks random results (Shorts and clips under 45 seconds are skipped).
 
-The left side is a value of the DECADE stepper (`any` is the blank setting). When DECADE is on a
-listed value, SEARCH returns random uploads from that channel; every other value digs Discogs as
-before, and Genre, Style, Region and Country are ignored for channels. The right side can be a
-channel link, an @handle, a `UC...` ID or a playlist link. The optional text after `|` is a name for
-the screen. With no `channels.txt`, nothing changes.
+Tap **KEYS** to open the popup keyboard (letters, digits and space). SEARCH on the keyboard closes it and searches;
+HIDE closes it without searching. A hardware keyboard is not needed. The results show up on the PLAY tab as usual.
 
-The helper reads the channel's newest 500 uploads with yt-dlp (Shorts and clips under 45 seconds
-are skipped). The list loads in the background on the first search and is cached in `/tmp` for a
-day, so that search can say "Still loading the channel": press SEARCH again. Timings and errors go
-to `/tmp/channel_digger.log`.
+List your channels in `channels.txt` in the plugin's `cratedigger/` folder, next to `bin/`, one per line (see
+[docs/channels.example.txt](docs/channels.example.txt)): a channel link, an @handle, a `UC...` ID or a playlist link,
+and optionally a name after a `|`. The CHANNEL stepper shows them. The installer keeps your `channels.txt` when you upgrade.
+A channel's newest 500 uploads load in the background on the first search and are cached in `/tmp` for a day, so that
+search can say "Still loading the channel": press SEARCH again. Timings and errors go to `/tmp/channel_digger.log`.
+The channel source was started by PotentialBreakfast (PR #21).
 
 ## Troubleshooting
 

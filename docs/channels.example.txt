@@ -1,11 +1,10 @@
-# channels.txt: YouTube channels for Crate Digger's SEARCH.
-# Put this file in the engine folder, next to bin/ (for example /sdcard/vst/cratedigger/channels.txt).
+# channels.txt: YouTube channels for the FIND tab's CHANNEL source.
+# Put this file in the plugin's cratedigger/ folder (next to bin/), for example
+#   /sdcard/Synths/sd88me - VST - Crate Digger/cratedigger/channels.txt
+# One channel per line, up to 16: a channel link, an @handle, a UC... channel ID or a playlist link,
+# then an optional name for the screen after a |. The installer keeps this file when you upgrade.
 #
-# decade = channel link, @handle, UC... ID or playlist link | name shown on screen (optional)
-#
-# The left side is a value of the DECADE stepper ("any" is the blank setting). When DECADE is on a
-# listed value, SEARCH returns random uploads from that channel. Every other value digs Discogs.
-#
-#2020s = https://www.youtube.com/@yourchannel | Your Channel
-#2010s = @anotherchannel
-#any = UCxxxxxxxxxxxxxxxxxxxxxx | Some Channel
+#https://www.youtube.com/@yourchannel | Your Channel
+#@anotherchannel
+#UCxxxxxxxxxxxxxxxxxxxxxx | Some Channel
+#https://www.youtube.com/playlist?list=PLxxxxxxxxxxxx | A Playlist

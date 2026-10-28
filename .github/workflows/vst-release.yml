@@ -28,6 +28,7 @@ jobs:
       build: SHADOW_SKIN_MPC_OS=2 TARGETS="armv7 aarch64" bash vst/release_build.sh
       extra: vst/build/engine/bin:cratedigger/bin
       extra_aarch64: vst/build/aarch64/engine/bin:cratedigger/bin
+      user_data: cratedigger/channels.txt
       zig: 0.14.1
       plugin_id: crate-digger
       license: MIT
