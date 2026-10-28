@@ -103,6 +103,10 @@
     {"key": "max_len_next", "name": "Max Length >", "type": "trigger"},
     {"key": "music_prev", "name": "Music Only <", "type": "trigger"},
     {"key": "music_next", "name": "Music Only >", "type": "trigger"},
-    {"key": "noop", "name": "Keyboard panel", "type": "trigger"}
+    {"key": "noop", "name": "Keyboard panel", "type": "trigger"},
+    {"key": "source_discogs", "name": "Source Discogs", "type": "trigger"},
+    {"key": "source_channel", "name": "Source Channel", "type": "trigger"},
+    {"key": "source_youtube", "name": "Source YouTube", "type": "trigger"},
+    {"key": "music_btn", "name": "Music Only Button", "type": "trigger"}
   ]
 }

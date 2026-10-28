@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Draws images/sync_off.png (light grey) and images/sync_on.png (amber) for the TRANSPORT SYNC button.
+"""Draws the lit buttons, each a light grey "off" and an amber "on" picture with its label baked in: images/sync_off/on.png
+(TRANSPORT SYNC) and images/src_discogs|channel|youtube_off/on.png and music_off/on.png (the FIND tab's SOURCE and MUSIC ONLY).
 
 The label is baked in dark ink (the skin builder's own button label is light, unreadable on light grey).
 Needs Pillow and Titillium Web SemiBold (OFL): FONT=<path to TitilliumWeb-SemiBold.ttf>, e.g. from
@@ -17,7 +18,7 @@ def lerp(c0, c1, t):
     return tuple(int(c0[i] + (c1[i] - c0[i]) * t) for i in range(3))
 
 
-def make(name, base, lit=False):
+def make(name, base, lit=False, txt="TRANSPORT SYNC"):
     """A keycap lit from the top left: dark outline, a stepped lower edge, a gradient face, a gloss band and a lit rim."""
     mul = lambda k: tuple(max(0, min(255, int(c * k))) for c in base)
     face_h = H - 4
@@ -37,7 +38,6 @@ def make(name, base, lit=False):
     d.rounded_rectangle((S, S, W * S - 1 - S, (face_h + 1) * S - 1), 6 * S, outline=mul(1.45) + (150,), width=S)  # lit rim
     d.rounded_rectangle((3 * S, 2 * S, W * S - 1 - 3 * S, (face_h // 2) * S), 4 * S, fill=(255, 255, 255, 38))  # gloss
     f = ImageFont.truetype(FONT, 17 * S)
-    txt = "TRANSPORT SYNC"
     tw = d.textlength(txt, font=f)
     ink = (58, 53, 43, 255)
     ty = (face_h + 1) * S / 2
@@ -48,3 +48,6 @@ def make(name, base, lit=False):
 
 make("sync_off.png", (196, 193, 184))
 make("sync_on.png", (232, 163, 23))
+for key, label in (("src_discogs", "DISCOGS"), ("src_channel", "CHANNEL"), ("src_youtube", "YOUTUBE"), ("music", "MUSIC ONLY")):
+    make(key + "_off.png", (196, 193, 184), txt=label)
+    make(key + "_on.png", (232, 163, 23), True, txt=label)

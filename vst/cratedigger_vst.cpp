@@ -109,6 +109,9 @@ struct Plugin {
     bool kb = false;                      /* popup keyboard shown */
     int last_key = -1;                    /* the popup keyboard's last key and when, to drop MPC's repeat of one tap */
     std::chrono::steady_clock::time_point last_key_at;
+    std::chrono::steady_clock::time_point press_at[NPARAMS];   /* when each sticky button last went down, and the last search press */
+    std::chrono::steady_clock::time_point search_at;
+    std::atomic<bool> sticky_dirty{false};   /* a sticky button was set: push the lit states back to MPC */
     int searched_source = SRC_DISCOGS;    /* what the last SEARCH asked, for the status text */
     volatile char release[NPARAMS];       /* triggers to report back to 0 */
     float step_seen[NPARAMS];             /* last raw value MPC sent to each stepper (-1 = none yet) */
@@ -273,6 +276,25 @@ static void load_channels(Plugin *p) {
 static void do_search(Plugin *p, bool find);
 
 /* The popup keyboard: letters and digits are typed lower case (the search ignores case), the keys' names are in params.json. */
+/* The FIND tab's lit buttons (SOURCE x3, MUSIC ONLY) are sticky like TRANSPORT SYNC: a tap picks the value, getParameter reports it. */
+static bool is_sticky(int i) { return i == P_TRANSPORT_SYNC || (i >= P_SOURCE_DISCOGS && i <= P_MUSIC_BTN); }
+static bool sticky_on(Plugin *p, int i) {
+    if (i == P_TRANSPORT_SYNC) return p->sync;
+    if (i == P_MUSIC_BTN) return p->music;
+    return p->source == i - P_SOURCE_DISCOGS;
+}
+/* A sticky toggle's new state. MPC sends a tap on a lit button as two events ~130 ms apart (a Live III log: 1 then 0 when off, 0 then 1
+ * when on): the first is the tap, the second puts the old value back. The value therefore means nothing; each tap flips the state once
+ * and events within TAP_GAP_MS of it are that second event (a Force, which sends one event, is covered too). */
+static const long TAP_GAP_MS = 300;
+static bool sticky_toggle(Plugin *p, int i, bool &state) {
+    auto now = std::chrono::steady_clock::now();
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - p->press_at[i]).count() < TAP_GAP_MS) return false;
+    p->press_at[i] = now;
+    state = !state;
+    return true;
+}
+
 static bool is_key(int i) { return PARAMS[i].key[0] == 'k' && PARAMS[i].key[1] == '_'; }
 static void type_key(Plugin *p, const char *k) {
     if (!std::strcmp(k, "back")) { if (!p->query.empty()) p->query.pop_back(); }
@@ -327,6 +349,9 @@ static void refresh_display(Plugin *p) {
 /* Triggers go back to 0 from here, not the audio callback (MPC may not call process() for a
  * silent track). */
 static void flush_releases(Plugin *p) {
+    if (p->sticky_dirty.exchange(false))
+        for (int i = P_TRANSPORT_SYNC; i <= P_MUSIC_BTN; i = i == P_TRANSPORT_SYNC ? P_SOURCE_DISCOGS : i + 1)
+            p->master(&p->fx, audioMasterAutomate, i, 0, nullptr, sticky_on(p, i) ? 1.0f : 0.0f);
     for (int i = 0; i < NPARAMS; i++)
         if (p->release[i]) { p->release[i] = 0; p->last[i] = 0.0f; p->master(&p->fx, audioMasterAutomate, i, 0, nullptr, 0.0f); }
 }
@@ -457,7 +482,7 @@ static float getParameter(AEffect *e, int32_t i) {
     case T_OPTION: return p->kb ? 1.0f : 0.0f;
     case T_FLOAT: return (p->gain - PARAMS[i].min) / (PARAMS[i].max - PARAMS[i].min);
     case T_SLOT: return current_result(p) == p->page * SLOTS + (i - P_RESULT_1) ? 1.0f : 0.0f;
-    case T_TRIGGER: return i == P_TRANSPORT_SYNC && p->sync ? 1.0f : 0.0f;   /* sticky: lights the button */
+    case T_TRIGGER: return is_sticky(i) && sticky_on(p, i) ? 1.0f : 0.0f;   /* sticky: lights the button */
     default: return 0.0f;
     }
 }
@@ -511,14 +536,24 @@ static void setParameter(AEffect *e, int32_t i, float v) {
         return;
     }
     case T_TRIGGER:
+        if (i >= P_SOURCE_DISCOGS && i <= P_MUSIC_BTN) {
+            LOG("sticky %s v=%.2f (source=%d music=%d)\n", PARAMS[i].key, v, p->source, p->music ? 1 : 0);
+            /* A tap on SOURCE picks that source (a tap on the lit one changes nothing); MUSIC ONLY follows MPC's toggle. Either way
+             * MPC is told the real states again, so a tap that MPC turned "off" lights up again. */
+            if (i == P_MUSIC_BTN) sticky_toggle(p, i, p->music);
+            else if (v > 0.5f) p->source = i - P_SOURCE_DISCOGS;
+            p->sticky_dirty = true;
+            return;
+        }
         if (i == P_TRANSPORT_SYNC) {
             /* A sticky on/off, not a momentary trigger: the button stays lit while sync is on. */
-            bool on = v > 0.5f;
-            if (on == p->sync) return;
+            bool on = p->sync;
+            if (!sticky_toggle(p, i, on)) return;
             p->sync = on;
             p->transport_playing.store(false);
             p->transport_edge.store(0);
             if (!on && p->hold) { p->hold = false; p->api->set_param(p->core, "hold_start", "0"); }
+            p->sticky_dirty = true;
             LOG("transport sync %s\n", on ? "on" : "off");
             return;
         }
@@ -558,10 +593,13 @@ static void setParameter(AEffect *e, int32_t i, float v) {
             p->last_key_at = now;
             type_key(p, PARAMS[i].key + 2);
         }
-    } else if (i == P_FIND_SEARCH) {
-        do_search(p, true);
-    } else if (i == P_SEARCH) {
-        do_search(p, false);
+    } else if (i == P_FIND_SEARCH || i == P_SEARCH) {
+        /* one tap can arrive twice ~130 ms apart (the log showed two searches); the second one only restarts the first */
+        auto now = std::chrono::steady_clock::now();
+        if (now - p->search_at > std::chrono::milliseconds(500)) {
+            p->search_at = now;
+            do_search(p, i == P_FIND_SEARCH);
+        }
     } else if (i == P_PLAY_PAUSE && p->hold) {
         /* Manual start while waiting for MPC's Play. */
         p->hold = false;
