@@ -39,5 +39,19 @@
   "firmware": "az01 base 5.0.17",
   "date": "2026-10-28",
   "note": "Release zip (armv7) installed with install.sh: the FIND tab, the lit source and MUSIC ONLY buttons, Transport Sync and the PLAY gain fader were checked on the device."
+ },
+ {
+  "version": "1.3.1",
+  "device": "MPC Live III (Gen2)",
+  "firmware": "az01 base 5.0.17",
+  "date": "2026-11-06",
+  "note": "aarch64 build. Before the fix every track began with a burst of full-scale noise: the stream shells ran as login shells (sh -lc), and this firmware's /root/.profile prints a ~700 KB ANSI disclaimer that went down the PCM pipe. Fixed with sh -c, playback confirmed clean. The FIND tab's CHANNEL source works with no text typed once channels.txt is in the plugin's cratedigger/ folder, and says where to put it when it isn't. The bundle is no longer searched for under /media/*/AddOns/ForceCrateDigger."
+ },
+ {
+  "version": "1.3.1",
+  "device": "Akai Force",
+  "firmware": "az01 base 5.0.17",
+  "date": "2026-11-07",
+  "note": "armv7 build installed over 1.3.0: loads, plays and searches as before with the sh -c change; the no-channel message names the channels.txt folder."
  }
 ]

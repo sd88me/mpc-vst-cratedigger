@@ -1020,7 +1020,7 @@ static int spawn_stream_command(yt_instance_t *inst, const char *cmd, const char
 
 #ifdef YT_POSIX_SPAWN
     {
-        char *argv[] = { (char *)"sh", (char *)"-lc", (char *)cmd, NULL };
+        char *argv[] = { (char *)"sh", (char *)"-c", (char *)cmd, NULL };
         pid = yt_spawn("/bin/sh", argv, -1, pipefd[1], 1);
     }
 #else
@@ -1039,7 +1039,7 @@ static int spawn_stream_command(yt_instance_t *inst, const char *cmd, const char
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[0]);
         close(pipefd[1]);
-        execl("/bin/sh", "sh", "-lc", cmd, (char *)NULL);
+        execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
         _exit(127);
     }
 #endif
@@ -1302,7 +1302,7 @@ static int run_search_command_legacy(const yt_instance_t *inst,
      * (2026-09-24" comment - relying on bin/yt-dlp's own shebang always
      * picks the device's system python3, which has no working zlib. */
     snprintf(cmd, sizeof(cmd),
-        "/bin/sh -lc \"\\\"%s/bin/python3/bin/python3.11\\\" \\\"%s/bin/yt-dlp\\\" --flat-playlist --no-warnings --no-playlist "
+        "/bin/sh -c \"\\\"%s/bin/python3/bin/python3.11\\\" \\\"%s/bin/yt-dlp\\\" --flat-playlist --no-warnings --no-playlist "
         "--extractor-args 'youtube:player_skip=js' "
         "--print '%%(id)s\\t%%(title)s\\t%%(channel)s\\t%%(duration_string)s' "
         "\\\"ytsearch%d:%s\\\" 2>/dev/null\"",
@@ -1779,7 +1779,7 @@ static int resolve_stream_url_legacy(const yt_instance_t *inst,
      * on start_stream_legacy's own yt-dlp invocation above. */
     snprintf(cmd,
              sizeof(cmd),
-             "/bin/sh -lc \"\\\"%s/bin/python3/bin/python3.11\\\" \\\"%s/bin/yt-dlp\\\" --no-playlist "
+             "/bin/sh -c \"\\\"%s/bin/python3/bin/python3.11\\\" \\\"%s/bin/yt-dlp\\\" --no-playlist "
              "--extractor-args 'youtube:player_skip=js' "
              "-f 'bestaudio[ext=m4a]/bestaudio' -g "
              "\\\"%s\\\" 2>/dev/null\"",

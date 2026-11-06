@@ -24,7 +24,6 @@
 #include <vector>
 #include <thread>
 #include <dlfcn.h>
-#include <glob.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -765,14 +764,7 @@ static std::string find_module_dir() {
         std::fclose(f);
         if (has_bin(line)) return line;
     }
-    glob_t g;
-    std::string found;
-    if (glob("/media/*/AddOns/ForceCrateDigger", 0, nullptr, &g) == 0) {
-        for (size_t i = 0; i < g.gl_pathc && found.empty(); i++)
-            if (has_bin(g.gl_pathv[i])) found = g.gl_pathv[i];
-        globfree(&g);
-    }
-    return found;
+    return "";
 }
 
 /* ---- dispatcher ----------------------------------------------------------- */
