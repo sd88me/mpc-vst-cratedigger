@@ -1356,7 +1356,10 @@ def channel_search(count_text: str, setting: str, query: str = "", min_len: int 
     count = _result_count(count_text)
     if not setting:
         write_fields("SEARCH_BEGIN")
-        write_fields("SEARCH_END", "0", "No channel selected - add one to channels.txt")
+        folder = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # the bundle: <plugin folder>/cratedigger
+        have = os.path.isfile(os.path.join(folder, "channels.txt"))
+        write_fields("SEARCH_END", "0", f"channels.txt in {folder} has no channels" if have
+                     else f"No channel selected - add channels.txt to {folder}")
         return
     st = channel_state(channel_list_url(setting))
     if st["entries"] is None and st["thread"].is_alive():
