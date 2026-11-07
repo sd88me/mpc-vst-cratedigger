@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Mock-ups of a redrawn Crate Digger skin, v2 ("record shop"): the SAME three tabs and positions as the 1.x skin (PLAY, FILTERS, FIND; vst/layout.conf
-y minus 86), only the look changes. Cream paper-label plates, vinyl-disc arrows, sleeve-card results with a record peeking out of the playing one.
-Pictures only, no TUI wiring:   python3 tools/mockup_skin.py   ->  docs/skin-mockups/{play,filters,find,find_keys}.png"""
+"""Mock-ups of a redrawn Crate Digger skin, v3 ("rack sampler"): a silver faceplate, a pale blue-green dot-matrix LCD, a row of function keys under
+the screen, black knurled knobs and printed bracket labels, in the spirit of late-80s rack samplers (no maker's name or logo). The three tabs keep
+the 1.x idea (PLAY, FILTERS, FIND) but the layout is loose. Pictures only, no TUI wiring:
+    python3 tools/mockup_skin.py   ->  docs/skin-mockups/{play,filters,find,find_keys}.png"""
 import math, os, random
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
@@ -12,32 +13,31 @@ FONT = next(f for f in (os.path.join(ROOT, "vst", "fonts", "Univers_53_Extended_
                         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf") if os.path.exists(f))
 MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
 SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-SERIF = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 S = 2
 W, H = 1280, 628
-BG, BG2, PANEL, PANEL_LINE = (38, 33, 28), (30, 26, 22), (47, 41, 35), (86, 76, 64)
-CREAM, CREAM2, INK, INK2 = (238, 228, 204), (220, 208, 180), (44, 38, 32), (110, 98, 82)
-AMBER, AMBER_D, DIM = (240, 160, 40), (110, 72, 16), (150, 140, 120)
-VINYL, VINYL2 = (22, 22, 24), (40, 40, 44)
+SILVER, SILVER2, SILVER3 = (201, 201, 195), (186, 186, 180), (160, 160, 154)
+BLACK, GRAPH, KEY, KEY_D = (24, 24, 26), (52, 52, 56), (226, 226, 220), (84, 84, 88)
+LCD, LCD_INK, LCD_DIM, LCD_GRID = (178, 204, 192), (24, 42, 38), (112, 146, 132), (150, 178, 166)
+INK, RED = (36, 36, 38), (190, 36, 30)
 
 
 def font(size, kind="u"):
-    return ImageFont.truetype({"u": FONT, "m": MONO, "s": SANS, "k": SERIF}[kind], int(size * S))
+    return ImageFont.truetype({"u": FONT, "m": MONO, "s": SANS}[kind], int(size * S))
 
 
 class C:
     def __init__(self):
-        self.im = Image.new("RGB", (W * S, H * S), BG)
+        self.im = Image.new("RGB", (W * S, H * S), SILVER)
         self.d = ImageDraw.Draw(self.im, "RGBA")
-        random.seed(5)
-        for y in range(0, H * S, 6):   # faint wood grain
-            v = random.randint(-5, 5)
-            self.d.line([(0, y), (W * S, y + random.randint(-3, 3))], fill=(255 if v > 0 else 0,) * 3 + (abs(v) + 2,), width=2)
+        random.seed(7)
+        for y in range(0, H * S, 3):   # brushed metal
+            v = random.randint(-9, 9)
+            self.d.line([(0, y), (W * S, y)], fill=(255 if v > 0 else 0,) * 3 + (abs(v),), width=1)
 
     def r(self, box, rad=8, fill=None, outline=None, width=1):
         self.d.rounded_rectangle([c * S for c in box], radius=rad * S, fill=fill, outline=outline, width=int(width * S))
 
-    def t(self, xy, text, size=14, fill=CREAM, anchor="mm", kind="u"):
+    def t(self, xy, text, size=14, fill=INK, anchor="mm", kind="u"):
         if any(ord(ch) > 127 for ch in text): kind = "s"
         self.d.text((xy[0] * S, xy[1] * S), text, font=font(size, kind), fill=fill, anchor=anchor)
 
@@ -47,7 +47,7 @@ class C:
     def line(self, pts, fill, width=1):
         self.d.line([(x * S, y * S) for x, y in pts], fill=fill, width=int(width * S))
 
-    def shadow(self, box, rad=8, blur=5, off=3, alpha=110):
+    def shadow(self, box, rad=8, blur=5, off=3, alpha=100):
         lay = Image.new("RGBA", self.im.size, (0, 0, 0, 0))
         ImageDraw.Draw(lay).rounded_rectangle([box[0] * S, (box[1] + off) * S, box[2] * S, (box[3] + off) * S], radius=rad * S, fill=(0, 0, 0, alpha))
         lay = lay.filter(ImageFilter.GaussianBlur(blur * S))
@@ -59,136 +59,174 @@ class C:
         self.im.resize((W, H), Image.LANCZOS).save(os.path.join(OUT, name))
 
 
-def frame(c, x0, y0, x1, y1, title):
-    c.r((x0, y0, x1, y1), 12, fill=PANEL, outline=PANEL_LINE, width=2)
-    c.t((x0 + 20, y0 + 16), title, 13, AMBER, "lm")
-    c.line([(x0 + 24 + len(title) * 10.5, y0 + 16), (x1 - 20, y0 + 16)], PANEL_LINE, 1)
+def lcd(c, box, grid=True):
+    """A recessed black bezel around a pale blue-green dot-matrix screen."""
+    x0, y0, x1, y1 = box
+    c.shadow(box, 8, 4, 2, 120)
+    c.r(box, 8, fill=BLACK, outline=(70, 70, 72), width=2)
+    c.r((x0 + 8, y0 + 8, x1 - 8, y1 - 8), 3, fill=LCD)
+    if grid:
+        for x in range(int(x0 + 8), int(x1 - 8), 3):
+            c.d.line([(x * S, (y0 + 8) * S), (x * S, (y1 - 8) * S)], fill=LCD_GRID + (50,), width=1)
+        for y in range(int(y0 + 8), int(y1 - 8), 3):
+            c.d.line([((x0 + 8) * S, y * S), ((x1 - 8) * S, y * S)], fill=LCD_GRID + (50,), width=1)
 
 
-def disc(c, cx, cy, r, spin=0.0, label=AMBER):
-    """A little vinyl record: black disc, groove rings, a coloured label, the spindle hole."""
-    c.ell(cx, cy, r, r, fill=VINYL, outline=(70, 70, 74), width=1)
-    for k in range(3, 6):
-        c.ell(cx, cy, r * (0.5 + k * 0.1), r * (0.5 + k * 0.1), outline=VINYL2, width=1)
-    c.ell(cx, cy, r * 0.36, r * 0.36, fill=label)
-    c.ell(cx, cy, r * 0.07, r * 0.07, fill=VINYL)
-    a = math.radians(-50 + spin)
-    c.line([(cx + math.cos(a) * r * 0.38, cy + math.sin(a) * r * 0.38), (cx + math.cos(a) * r * 0.9, cy + math.sin(a) * r * 0.9)], (200, 200, 205, 90), 2)
+def lt(c, xy, text, size=16, inv=False, anchor="lm", dim=False):
+    c.t(xy, text, size, LCD if inv else (LCD_DIM if dim else LCD_INK), anchor, "m")
 
 
-def plate(c, cx, cy, w, h, text, label=None, size=17, dim=False):
-    """A paper-label value plate: dark ink on cream, with the small caption above it."""
-    if label:
-        c.t((cx, cy - h / 2 - 13), label, 12, DIM)
-    c.shadow((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), 5, 3, 2, 120)
-    c.r((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), 5, fill=CREAM2 if dim else CREAM, outline=(150, 140, 118), width=1)
-    c.line([(cx - w / 2 + 8, cy + h / 2 - 5), (cx + w / 2 - 8, cy + h / 2 - 5)], (190, 178, 150), 1)
-    c.t((cx, cy - 1), text, size, INK2 if dim else INK, "mm", "k")
+def bar(c, x0, y0, x1, y1):
+    c.d.rectangle([x0 * S, y0 * S, x1 * S, y1 * S], fill=LCD_INK)
 
 
-def stepper(c, cx, cy, w, h, label, value, size=20):
-    """Two vinyl-disc arrows either side of a label plate."""
-    plate(c, cx, cy, w - 2 * (h + 14), h, value, None, size)
-    c.t((cx - w / 2 + 6, cy - h / 2 - 14), label, 12, DIM, "lm")
-    for sgn in (-1, 1):
-        x = cx + sgn * (w / 2 - h / 2)
-        disc(c, x, cy, h / 2)
-        c.d.polygon([((x + 7 * sgn) * S, cy * S), ((x - 5 * sgn) * S, (cy - 10) * S), ((x - 5 * sgn) * S, (cy + 10) * S)], fill=CREAM)
+def label(c, x0, x1, y, text):
+    """A printed bracket label: ruler line, centred text, short end ticks (the 'SCREEN FUNCTION' idiom)."""
+    mid = (x0 + x1) / 2
+    tw = len(text) * 9.5 + 18
+    c.line([(x0, y), (mid - tw / 2, y)], INK + (200,), 1)
+    c.line([(mid + tw / 2, y), (x1, y)], INK + (200,), 1)
+    c.line([(x0, y), (x0, y + 7)], INK + (200,), 1)
+    c.line([(x1, y), (x1, y + 7)], INK + (200,), 1)
+    c.t((mid, y), text, 12, INK)
 
 
-def key(c, cx, cy, w, h, text, lit=False, accent=False, legend=None, textsize=15):
-    """A flat deck key: ivory, rounded, an amber lamp when lit; the accent one is amber."""
-    c.shadow((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), 8, 4, 3, 130)
-    base = AMBER if accent else (CREAM if not lit else (255, 214, 130))
-    c.r((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), 8, fill=base, outline=(120, 100, 60), width=2)
-    c.r((cx - w / 2 + 3, cy - h / 2 + 3, cx + w / 2 - 3, cy - 1), 6, fill=(255, 255, 255, 60))
-    c.t((cx, cy + 1), text, textsize, INK, "mm")
+def fkey(c, cx, cy, w, h, text, fnum=None, lit=False, red=False, dark=False, size=14):
+    """A flat plastic key with its legend printed on it; an F-number above, an LED when lit."""
+    c.shadow((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), 5, 3, 3, 110)
+    base = (150, 34, 28) if red else (KEY_D if dark else KEY)
+    c.r((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), 5, fill=base, outline=(70, 70, 66), width=2)
+    c.r((cx - w / 2 + 3, cy - h / 2 + 3, cx + w / 2 - 3, cy - h / 2 + h * 0.4), 3, fill=(255, 255, 255, 70))
+    c.t((cx, cy + 1), text, size, (240, 236, 230) if (red or dark) else INK)
+    if fnum:
+        c.t((cx, cy - h / 2 - 11), "F%d" % fnum, 10, INK)
     if lit:
-        c.ell(cx + w / 2 - 12, cy - h / 2 + 11, 4, 4, fill=(255, 120, 40))
-    if legend:
-        c.t((cx, cy + h / 2 + 14), legend, 11, DIM)
+        c.ell(cx + w / 2 - 11, cy - h / 2 + 10, 4, 4, fill=RED, outline=(90, 10, 8))
 
 
-def screen(c, cx, cy, w, h, label, value, size=17):
-    """A small amber read-out window."""
-    c.t((cx - w / 2 + 4, cy - h / 2 - 12), label, 12, DIM, "lm")
-    c.r((cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), 6, fill=(18, 12, 4), outline=(90, 78, 56), width=2)
-    c.t((cx - w / 2 + 14, cy), value, size, AMBER, "lm", "m")
+def knob(c, cx, cy, r, value, name, cap=False):
+    """A black knurled knob with a white pointer, a printed ruler of ticks and its name above."""
+    for i in range(21):
+        a = math.radians(135 + i * 270 / 20)
+        l = 11 if i % 5 == 0 else 7
+        c.line([(cx + math.cos(a) * (r + 8), cy + math.sin(a) * (r + 8)), (cx + math.cos(a) * (r + 8 + l), cy + math.sin(a) * (r + 8 + l))], INK, 2 if i % 5 == 0 else 1)
+    c.shadow((cx - r, cy - r, cx + r, cy + r), r, 7, 7, 140)
+    c.ell(cx, cy, r, r, fill=BLACK, outline=(8, 8, 8), width=2)
+    for i in range(48):   # knurled edge
+        a = math.radians(i * 7.5)
+        c.line([(cx + math.cos(a) * (r - 6), cy + math.sin(a) * (r - 6)), (cx + math.cos(a) * (r - 1), cy + math.sin(a) * (r - 1))], (90, 90, 94), 1)
+    c.ell(cx, cy, r - 9, r - 9, fill=(40, 40, 44), outline=(14, 14, 16), width=1)
+    c.ell(cx - 2, cy - 3, r - 17, r - 17, fill=(52, 52, 56))
+    a = math.radians(135 + value * 270)
+    c.line([(cx + math.cos(a) * 6, cy + math.sin(a) * 6), (cx + math.cos(a) * (r - 9), cy + math.sin(a) * (r - 9))], (240, 240, 236), 4)
+    c.t((cx, cy - r - 32), name, 15, INK)
+
+
+def window(c, cx, cy, w, h, value, size=16, caption=None, arrows=True):
+    """A small LCD window; ◄ ► keys either side."""
+    if caption:
+        c.t((cx, cy - h / 2 - 14), caption, 12, INK)
+    lcd(c, (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2), grid=False)
+    lt(c, (cx, cy), value, size, anchor="mm")
+    if arrows:
+        for sgn, ch in ((-1, "◄"), (1, "►")):
+            fkey(c, cx + sgn * (w / 2 + 28), cy, 40, h - 4, ch, size=13)
+
+
+def top(c, now="OPEN SESAME - TREVOR NOVA", status="STREAMING", time="0:42", search="DONE - 12 RESULTS IN 3.1S", gain=0.5):
+    """The same on every page: the wordmark, the LCD with the readouts, the gain knob."""
+    c.t((40, 44), "CRATE DIGGER", 27, INK, "lm")
+    c.line([(40, 66), (300, 66)], INK, 2)
+    c.t((40, 84), "STEREO DIGITAL RECORD SAMPLER", 10, INK, "lm")
+    c.t((40, 102), "S H A R E D   R O O M   M O D E L", 9, INK, "lm") if False else None
+    lcd(c, (330, 10, 1010, 130))
+    for i, (k, v) in enumerate([("NOW", now), ("STATUS", status), ("TIME", time), ("SEARCH", search)]):
+        lt(c, (354, 34 + i * 25), k, 12, dim=True)
+        lt(c, (440, 34 + i * 25), v, 17)
+    knob(c, 1150, 82, 36, gain, "", cap=True)
+    c.t((1150, 22), "GAIN", 13, INK)
+    c.line([(1090, 130), (1210, 130)], INK + (0,), 1)
 
 
 def play():
     c = C()
-    frame(c, 40, 4, 1240, 222, "TRANSPORT")
-    for i, (txt, leg) in enumerate([("◄◄", "BACK 15 S"), ("▶", "PLAY / PAUSE"), ("►►", "FORWARD 15 S"), ("■", "STOP")]):
-        key(c, 150 + i * 130, 83, 90, 56, txt, accent=(i == 1), legend=leg)
-    key(c, 700, 83, 150, 56, "SYNC", lit=True, legend="WAIT FOR MPC PLAY")
-    screen(c, 1000, 83, 170, 40, "STATUS", "STREAMING")
-    screen(c, 471, 170, 822, 40, "NOW PLAYING", "OPEN SESAME - TREVOR NOVA", 18)
-    screen(c, 994, 170, 130, 40, "TIME", "0:42", 18)
-    c.r((1150, 28, 1176, 168), 8, fill=(14, 12, 10), outline=PANEL_LINE, width=2)   # gain fader
-    c.r((1134, 78, 1192, 104), 6, fill=CREAM, outline=(120, 100, 60), width=2)
-    c.t((1163, 186), "GAIN", 12, DIM)
-    frame(c, 40, 232, 1240, 376, "RESULTS")
-    stepper(c, 322, 325, 520, 52, "RESULTS PAGE", "PAGE 1 / 2", 19)
-    screen(c, 817, 325, 410, 40, "SEARCH", "DONE - 12 RESULTS IN 3.1S", 15)
-    key(c, 1120, 325, 190, 52, "SEARCH", accent=True)
-    frame(c, 40, 386, 1240, 624, "")
-    titles = ["OPEN SESAME - TREVOR NOVA  1996  4:12", "AMEN BREAK - THE WINSTONS  1969  2:05", "ACID TRACKS - PHUTURE  1987  6:55", "DEEP SPACE - NOVA  1994  5:40",
-              "MOVE YOUR BODY - MARSHALL  1986  3:30", "STRINGS OF LIFE - RHYTHIM  1987  5:12", "NO WAY BACK - ADONIS  1986  4:49", "(UNTITLED)  1991  7:03"]
-    for i, t in enumerate(titles):
+    top(c)
+    label(c, 40, 1240, 160, "SCREEN FUNCTION")
+    keys = [("◄◄ 15", False, False), ("▶ ❚❚", False, False), ("■", False, False), ("15 ►►", False, False), ("SYNC", True, False), ("◄ PAGE", False, False), ("PAGE ►", False, False), ("SEARCH", False, True)]
+    for i, (t, lit, red) in enumerate(keys):
+        fkey(c, 108 + i * 152, 215, 128, 52, t, i + 1, lit=lit, red=red)
+    # the big LCD: header line + results as an LCD list, the playing row in inverse video
+    lcd(c, (40, 262, 1240, 616))
+    bar(c, 58, 276, 1222, 304)
+    lt(c, (70, 290), "RESULTS", 17, inv=True)
+    lt(c, (700, 290), "PAGE 1 / 2     12 FOUND     SYNC ON", 15, inv=True, anchor="mm")
+    rows = [("OPEN SESAME", "TREVOR NOVA", "1996", "4:12"), ("AMEN BREAK", "THE WINSTONS", "1969", "2:05"), ("ACID TRACKS", "PHUTURE", "1987", "6:55"), ("DEEP SPACE", "NOVA", "1994", "5:40"),
+            ("MOVE YOUR BODY", "MARSHALL JEFFERSON", "1986", "3:30"), ("STRINGS OF LIFE", "RHYTHIM IS RHYTHIM", "1987", "5:12"), ("NO WAY BACK", "ADONIS", "1986", "4:49"), ("(UNTITLED)", "", "1991", "7:03")]
+    for i, (t, a, y, d) in enumerate(rows):
         col, row = i // 4, i % 4
-        x0, y0 = 64 + col * 580, 408 + row * 52
+        x0, y0 = 62 + col * 590, 316 + row * 72
         playing = i == 1
         if playing:
-            disc(c, x0 + 618, y0 + 22, 21, 30)   # the record sliding out of its sleeve
-        c.shadow((x0, y0, x0 + 560, y0 + 44), 5, 3, 2, 110)
-        c.r((x0, y0, x0 + 560, y0 + 44), 5, fill=CREAM if not playing else (255, 232, 170), outline=(150, 140, 118), width=1)
-        c.r((x0, y0, x0 + 12, y0 + 44), 4, fill=[(190, 80, 50), (60, 120, 130), (200, 160, 50), (110, 90, 150)][i % 4])   # the spine
-        name, *rest = t.split("  ")
-        c.t((x0 + 26, y0 + 22), "%02d" % (i + 1), 18, INK2, "lm", "k")
-        c.t((x0 + 66, y0 + 22), name[:34], 15, INK, "lm", "k")
-        c.t((x0 + (420 if not playing else 400), y0 + 22), "  ".join(rest), 13, INK2, "lm", "k")
+            bar(c, x0 - 4, y0 - 2, x0 + 566, y0 + 62)
+        lt(c, (x0 + 6, y0 + 16), "%02d" % (i + 1), 20, inv=playing)
+        lt(c, (x0 + 52, y0 + 16), t, 20, inv=playing)
+        lt(c, (x0 + 52, y0 + 44), a, 14, inv=playing, dim=not playing)
+        lt(c, (x0 + 556, y0 + 16), d, 16, inv=playing, anchor="rm")
+        lt(c, (x0 + 556, y0 + 44), y, 14, inv=playing, anchor="rm", dim=not playing)
     c.save("play.png")
 
 
 def filters():
     c = C()
-    frame(c, 40, 4, 1242, 540, "DISCOGS FILTERS")
-    for i, (lab, val) in enumerate([("GENRE", "ELECTRONIC"), ("STYLE (DEPENDS ON GENRE)", "ACID HOUSE"), ("DECADE", "1990s"), ("REGION", "EUROPE"), ("COUNTRY (DEPENDS ON REGION)", "GERMANY")]):
-        stepper(c, 640, 97 + i * 100, 1000, 64, lab, val, 24)
-    key(c, 282, 590, 290, 52, "SEARCH DISCOGS", accent=True)
-    screen(c, 820, 590, 748, 40, "STATUS", "DONE - 12 RESULTS IN 3.1S", 16)
+    top(c)
+    label(c, 40, 1240, 160, "DISCOGS FILTERS")
+    names = [("GENRE", "ELECTRONIC", .35), ("STYLE", "ACID HOUSE", .5), ("DECADE", "1990s", .62), ("REGION", "EUROPE", .3), ("COUNTRY", "GERMANY", .45)]
+    for i, (n, v, val) in enumerate(names):
+        cx = 140 + i * 250
+        knob(c, cx, 290, 44, val, n)
+        window(c, cx, 392, 124, 40, v, 15)
+    c.t((640, 452), "STYLE FOLLOWS GENRE  -  COUNTRY FOLLOWS REGION", 11, INK)
+    label(c, 40, 1240, 490, "SCREEN FUNCTION")
+    fkey(c, 150, 556, 220, 56, "SEARCH DISCOGS", 1, red=True)
+    lcd(c, (330, 526, 1240, 590))
+    lt(c, (354, 548), "STATUS", 12, dim=True)
+    lt(c, (354, 570), "DONE - 12 RESULTS IN 3.1S", 18)
     c.save("filters.png")
 
 
 def find(keys=False):
     c = C()
-    frame(c, 40, 4, 1240, 334, "FIND")
-    for i, (name, leg) in enumerate([("DISCOGS", "ONLINE DIG"), ("CHANNEL", "FROM CHANNELS.TXT"), ("YOUTUBE", "ANY VIDEO")]):
-        key(c, 152 + i * 196, 90, 170, 54, name, lit=(i == 2))
-    stepper(c, 936, 90, 560, 56, "CHANNEL (FROM CHANNELS.TXT)", "NONE - SEE CHANNELS.TXT", 17)
-    stepper(c, 244, 166, 360, 48, "MIN LENGTH (YOUTUBE)", "ANY", 18)
-    stepper(c, 640, 166, 360, 48, "MAX LENGTH (YOUTUBE)", "ANY", 18)
-    key(c, 1126, 166, 150, 48, "MUSIC ONLY")
-    screen(c, 640, 240, 1152, 44, "SEARCH TEXT", "AMEN BREAK_" if keys else "TAP KEYS TO TYPE", 22)
-    key(c, 112, 305, 130, 46, "KEYS")
-    key(c, 262, 305, 130, 46, "SEARCH", accent=True)
-    screen(c, 786, 308, 860, 34, "STATUS", "DONE - 12 RESULTS IN 3.1S", 15)
-    if keys:
-        c.shadow((0, 338, W, H), 0, 8, -3, 160)
-        c.r((0, 338, W, H), 0, fill=BG2)
+    top(c, search="SEARCH YOUTUBE ..." if keys else "DONE - 12 RESULTS IN 3.1S")
+    label(c, 40, 1240, 160, "SOURCE")
+    for i, n in enumerate(["DISCOGS", "CHANNEL", "YOUTUBE"]):
+        fkey(c, 112 + i * 168, 212, 144, 52, n, i + 1, lit=(i == 2))
+    window(c, 810, 212, 380, 44, "NONE - SEE CHANNELS.TXT", 15, caption="CHANNEL")
+    fkey(c, 1180, 212, 150, 52, "MUSIC ONLY", 5)
+    window(c, 250, 308, 220, 40, "ANY", 16, caption="MIN LENGTH")
+    window(c, 640, 308, 220, 40, "ANY", 16, caption="MAX LENGTH")
+    label(c, 40, 1240, 366, "SEARCH TEXT")
+    lcd(c, (40, 380, 1240, 438))
+    lt(c, (66, 409), "AMEN BREAK_" if keys else "TAP KEYS TO TYPE", 24, dim=not keys)
+    fkey(c, 112, 520, 144, 52, "KEYS", 6)
+    fkey(c, 280, 520, 144, 52, "SEARCH", 7, red=True)
+    lcd(c, (400, 492, 1240, 548))
+    lt(c, (424, 520), "DONE - 12 RESULTS IN 3.1S", 17)
+    if keys:   # the keypad, drawn over the lower half
+        c.shadow((0, 330, W, H), 0, 8, -3, 170)
+        c.r((0, 330, W, H), 0, fill=(44, 44, 48))
+        c.line([(0, 330), (W, 330)], (120, 120, 124), 2)
         rows = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"]
         for ri, row in enumerate(rows):
             x0 = 118 + [0, 0, 58, 174][ri]
             for k, ch in enumerate(row):
-                kx, ky = x0 + k * 116, 346 + ri * 54
-                c.shadow((kx - 52, ky, kx + 52, ky + 46), 6, 3, 2, 110)
-                c.r((kx - 52, ky, kx + 52, ky + 46), 6, fill=CREAM, outline=(150, 140, 118), width=1)
-                c.t((kx, ky + 24), ch, 20, INK, "mm", "k")
-        for (cx, cy, w, txt, acc) in [(130, 586, 200, "HIDE", False), (520, 586, 520, "SPACE", False), (880, 586, 190, "CLEAR", False), (1130, 586, 220, "SEND", True), (1180, 531, 150, "BACK", False)]:
-            c.shadow((cx - w / 2, cy - 24, cx + w / 2, cy + 24), 6, 3, 2, 110)
-            c.r((cx - w / 2, cy - 24, cx + w / 2, cy + 24), 6, fill=AMBER if acc else CREAM2, outline=(150, 140, 118), width=1)
-            c.t((cx, cy), txt, 18, INK)
+                kx, ky = x0 + k * 116, 344 + ri * 54
+                c.shadow((kx - 52, ky, kx + 52, ky + 46), 5, 3, 2, 120)
+                c.r((kx - 52, ky, kx + 52, ky + 46), 5, fill=KEY, outline=(70, 70, 66), width=2)
+                c.t((kx, ky + 24), ch, 20, INK)
+        for (cx, cy, w, txt, red) in [(130, 586, 200, "HIDE", False), (520, 586, 520, "SPACE", False), (880, 586, 190, "CLEAR", False), (1130, 586, 220, "SEND", True), (1180, 529, 150, "BACK", False)]:
+            c.shadow((cx - w / 2, cy - 24, cx + w / 2, cy + 24), 5, 3, 2, 120)
+            c.r((cx - w / 2, cy - 24, cx + w / 2, cy + 24), 5, fill=(150, 34, 28) if red else KEY, outline=(70, 70, 66), width=2)
+            c.t((cx, cy), txt, 18, (240, 236, 230) if red else INK)
     c.save("find_keys.png" if keys else "find.png")
 
 
