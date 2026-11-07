@@ -1,0 +1,14 @@
+{
+  "name": "Crate Digger",
+  "manufacturer": "sd88me",
+  "uid": "CrDg",
+  "kind": "instrument",
+  "numInputs": 0,
+  "numOutputs": 2,
+  "version": "2.0.0",
+  "category": "Synth",
+  "description": "Dig for records on Discogs and play them from YouTube into an MPC track.",
+  "author": "sd88me",
+  "license": "MIT",
+  "url": "https://github.com/sd88me/mpc-vst-cratedigger"
+}
