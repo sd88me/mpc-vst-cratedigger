@@ -54,7 +54,7 @@ json.dump(m, open(folder + "/plugin.json", "w"), indent=2)
 open(folder + "/version.xml", "w").write('<?xml version="1.0" encoding="utf-8"?>\n<plugincontent version="1.0">\n    <version>%s</version>\n</plugincontent>\n' % m["version"])
 PY
   # Phase 1 has no skin (the MPC then shows its generic parameter pages); phase 2 adds skins/ from tools/make_tui.py.
-  if [ -d skins ]; then cp -r skins/. "$folder/Plugin Skins/"; else rmdir "$folder/Plugin Skins"; fi
+  if [ -d skins ]; then cp -r skins/. "$folder/Plugin Skins/"; sed -i "s#</plugincontent>#    <uiversion>0.1.0.0</uiversion>\n</plugincontent>#" "$folder/version.xml"; else rmdir "$folder/Plugin Skins"; fi
   python3 "$SDK/tools/validate.py" "$folder" || true
   echo "built: $folder"
 }

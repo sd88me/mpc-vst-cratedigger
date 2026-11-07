@@ -65,7 +65,8 @@ static const size_t CHANNELS_MAX = 16;
 static const int MIN_LENS[] = {0, 1, 2, 3, 5, 10};
 static const int MAX_LENS[] = {0, 5, 6, 10, 15, 20, 30, 60};
 static const int NMIN_LENS = (int)(sizeof MIN_LENS / sizeof *MIN_LENS), NMAX_LENS = (int)(sizeof MAX_LENS / sizeof *MAX_LENS);
-static const long KEY_REPEAT_MS = 150;   /* same popup key twice inside this is one tap */
+static const long KEY_REPEAT_MS = 150;
+static const long TAP_GAP_MS = 300;   /* same popup key twice inside this is one tap */
 struct Channel { std::string link, name; };   /* one line of channels.txt */
 
 /* Everything the old wrapper's Plugin struct held, minus the VST glue. Guarded by `lock`. */
@@ -643,7 +644,7 @@ public:
             return;
         }
         case T_TRIGGER:
-            if (is_sticky(index)) { stickyChanged(index, plain > 0.5f); return; }
+            if (is_sticky(index)) { stickyChanged(index, plain); return; }
             break;
         default: return;
         }
@@ -721,21 +722,26 @@ private:
         return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
     }
 
-    // A lit button changed. Under lock.
-    void stickyChanged(int i, bool on)
+    // A lit button changed. Under lock. SOURCE x3 pick their source on a value above 0.5. MUSIC ONLY and TRANSPORT SYNC are toggles: the MPC
+    // sends one tap on a lit button as two events ~130 ms apart (a Live III log: 1 then 0 when switching off, 0 then 1 when on), so the value
+    // means nothing; each tap flips the state once and events within TAP_GAP_MS of that are its second event. The worker tells the host the
+    // real state again, so a tap the MPC turned "off" lights up again.
+    void stickyChanged(int i, float plain)
     {
-        if (i == P_MUSIC_BTN) { e_.music = on; }
-        else if (i == P_TRANSPORT_SYNC)
+        if (i >= P_SOURCE_DISCOGS && i < P_MUSIC_BTN) { if (plain > 0.5f) e_.source = i - P_SOURCE_DISCOGS; dirty_.store(true); return; }
+        const auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - pressAt_[i]).count() < TAP_GAP_MS) return;
+        pressAt_[i] = now;
+        if (i == P_MUSIC_BTN) e_.music = !e_.music;
+        else   // P_TRANSPORT_SYNC
         {
-            if (on == e_.sync) return;
-            e_.sync = on;
-            sync_.store(on);
+            e_.sync = !e_.sync;
+            sync_.store(e_.sync);
             e_.transport_playing.store(false);
             e_.transport_edge.store(0);
-            if (!on && e_.hold) { e_.hold = false; core_set(&e_, "hold_start", "0"); }
-            LOG("transport sync %s\n", on ? "on" : "off");
+            if (!e_.sync && e_.hold) { e_.hold = false; core_set(&e_, "hold_start", "0"); }
+            LOG("transport sync %s\n", e_.sync ? "on" : "off");
         }
-        else if (on) e_.source = i - P_SOURCE_DISCOGS;   // a tap on the lit SOURCE changes nothing (the worker re-lights it)
         dirty_.store(true);
     }
 
@@ -913,6 +919,7 @@ private:
     float *last_ = nullptr;
     std::vector<std::string> shown_;
     int counter_[NPARAMS] = {0};
+    std::chrono::steady_clock::time_point pressAt_[NPARAMS];   // when each toggle last flipped
 };
 
 // The same entry as MPC_PLUGIN_ENTRY, plus two wrapped dispatcher ops: effSetChunk reads a 1.x wrapper project, and effGetParamDisplay lets the

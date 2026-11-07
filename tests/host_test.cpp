@@ -128,9 +128,12 @@ int main(void) {
     CHECK(a->getP(a, P_SOURCE_YOUTUBE) > 0.5f, "the lit SOURCE went dark");
     a->setP(a, P_TRANSPORT_SYNC, 1.0f); settle();
     CHECK(text(a, P_SYNC_STATE) == "SYNC ON", "sync state '%s'", text(a, P_SYNC_STATE).c_str());
-    a->setP(a, P_MUSIC_BTN, 1.0f); settle();
-    a->setP(a, P_MUSIC_BTN, 0.0f); settle();
+    a->setP(a, P_MUSIC_BTN, 1.0f); settle(350);
+    CHECK(a->getP(a, P_MUSIC_BTN) > 0.5f, "MUSIC ONLY did not light");
+    a->setP(a, P_MUSIC_BTN, 0.0f); settle(350);   /* a tap on a lit button: the value is 0 or 1, either way it flips */
     CHECK(a->getP(a, P_MUSIC_BTN) < 0.5f, "MUSIC ONLY did not switch off");
+    a->setP(a, P_MUSIC_BTN, 1.0f); usleep(130000); a->setP(a, P_MUSIC_BTN, 0.0f); settle(350);   /* one tap delivered as two events */
+    CHECK(a->getP(a, P_MUSIC_BTN) > 0.5f, "a double-delivered tap flipped MUSIC ONLY twice");
 
     /* the gain */
     a->setP(a, P_GAIN, 0.75f); settle(80);
