@@ -319,7 +319,7 @@ static int stepper_index(Plugin *p, int i) {
     if (i == P_MIN_LEN) return p->min_len;
     if (i == P_MAX_LEN) return p->max_len;
     if (i == P_MUSIC) return p->music ? 1 : 0;
-    return p->dim[i];
+    return i >= 0 && i < NDIMS ? p->dim[i] : 0;
 }
 static void stepper_set(Plugin *p, int i, int v) {
     if (i == P_PAGE) {
