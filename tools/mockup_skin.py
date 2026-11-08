@@ -215,28 +215,27 @@ def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), bod
 
 
 def master(c, gain=0.5):
-    """MAIN VOLUME (the plugin's gain) and the stereo level meter: a compact printed section at the top right of every tab."""
-    c.r((840, 6, 1240, 78), 4, fill=SILK)
-    c.t((858, 34), "MAIN", 9, INK, "lm", "b")
-    c.t((858, 48), "VOLUME", 9, INK, "lm", "b")
-    c.r((912, 38, 972, 46), 3, fill=(20, 20, 22), outline=(60, 60, 62), width=1)   # horizontal fader: slot, ticks, cap
-    for i in range(11):
-        c.line([(914 + i * 5.6, 52), (914 + i * 5.6, 56 if i % 5 == 0 else 54)], INK, 1)
-    cx = 912 + gain * 60
-    c.shadow((cx - 7, 30, cx + 7, 54), 2, 2, 2, 140)
-    vgrad(c, (cx - 7, 30, cx + 7, 54), (236, 236, 232), (170, 170, 166), 2)
-    c.r((cx - 7, 30, cx + 7, 54), 2, outline=(60, 60, 58), width=1)
-    c.line([(cx, 32), (cx, 52)], (40, 40, 40), 2)
+    """GAIN (a wide horizontal fader) and the stereo level meter: a compact printed section at the top right of every tab."""
+    c.r((700, 6, 1240, 78), 4, fill=SILK)
+    c.t((718, 42), "GAIN", 10, INK, "lm", "b")
+    c.r((780, 38, 980, 46), 3, fill=(20, 20, 22), outline=(60, 60, 62), width=1)   # fader slot, ticks, cap
+    for i in range(21):
+        c.line([(782 + i * 9.5, 52), (782 + i * 9.5, 57 if i % 5 == 0 else 54)], INK, 1)
+    cx = 780 + gain * 200
+    c.shadow((cx - 8, 28, cx + 8, 56), 2, 2, 2, 140)
+    vgrad(c, (cx - 8, 28, cx + 8, 56), (236, 236, 232), (170, 170, 166), 2)
+    c.r((cx - 8, 28, cx + 8, 56), 2, outline=(60, 60, 58), width=1)
+    c.line([(cx, 30), (cx, 54)], (40, 40, 40), 2)
+    c.t((1016, 42), "LEVEL", 9, INK, "lm", "b")
     for row, lit_n in enumerate((6, 5)):
-        c.t((988, 30 + row * 22), "LR"[row], 9, INK)
+        c.t((1062, 30 + row * 22), "LR"[row], 9, INK)
         for i in range(10):
             col = (255, 60, 40) if i == 9 else ((255, 190, 40) if i >= 7 else (70, 230, 120))
             on = i < lit_n + (2 if i < 6 and row == 0 else 0)
-            x, y = 1008 + i * 17, 30 + row * 22
+            x, y = 1076 + i * 15, 30 + row * 22
             if on:
                 glow(c, x, y, 7, col, 130)
             c.r((x - 6, y - 5, x + 6, y + 5), 2, fill=col if on else tuple(v // 4 for v in col), outline=(40, 40, 40), width=1)
-    c.t((1204, 42), "LEVEL", 9, INK, "mm", "b")
 
 
 def header(c, tabname):

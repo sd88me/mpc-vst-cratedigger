@@ -106,17 +106,16 @@ class Page:
 
 
 # ---- the master section: main volume (a horizontal fader) and the stereo level meter, on every tab ---------------------------------------
-GAIN_X, GAIN_Y, GAIN_W, GAIN_H = 892, 24, 100, 40
-LEV_X, LEV_Y, LEV_W, LEV_H = 1000, 24, 180, 16
+GAIN_X, GAIN_Y, GAIN_W, GAIN_H = 760, 22, 240, 44
+LEV_X, LEV_Y, LEV_W, LEV_H = 1068, 24, 160, 16
 
 
 def master_bg(c):
-    c.r((840, 6, 1240, 78), 4, fill=M.SILK)
-    c.t((858, 34), "MAIN", 9, M.INK, "lm", "b")
-    c.t((858, 48), "VOLUME", 9, M.INK, "lm", "b")
-    c.t((988, 30), "L", 9, M.INK)
-    c.t((988, 52), "R", 9, M.INK)
-    c.t((1204, 42), "LEVEL", 9, M.INK, "mm", "b")
+    c.r((700, 6, 1240, 78), 4, fill=M.SILK)
+    c.t((718, 42), "GAIN", 10, M.INK, "lm", "b")
+    c.t((1016, 42), "LEVEL", 9, M.INK, "lm", "b")
+    c.t((1062, 30), "L", 9, M.INK)
+    c.t((1062, 52), "R", 9, M.INK)
 
 
 def gain_strip(frames=64):
@@ -124,14 +123,14 @@ def gain_strip(frames=64):
     for f in range(frames):
         sp = Sprite(GAIN_W, GAIN_H)
         g = f / (frames - 1)
-        sp.r((20, 14, 80, 22), 3, fill=(20, 20, 22), outline=(60, 60, 62), width=1)
-        for i in range(11):
-            sp.line([(22 + i * 5.6, 28), (22 + i * 5.6, 32 if i % 5 == 0 else 30)], M.INK, 1)
-        cx = 20 + g * 60
-        sp.shadow((cx - 7, 6, cx + 7, 30), 2, 2, 2, 140)
-        M.vgrad(sp, (cx - 7, 6, cx + 7, 30), (236, 236, 232), (170, 170, 166), 2)
-        sp.r((cx - 7, 6, cx + 7, 30), 2, outline=(60, 60, 58), width=1)
-        sp.line([(cx, 8), (cx, 28)], (40, 40, 40), 2)
+        sp.r((20, 16, 220, 24), 3, fill=(20, 20, 22), outline=(60, 60, 62), width=1)
+        for i in range(21):
+            sp.line([(22 + i * 9.5, 30), (22 + i * 9.5, 35 if i % 5 == 0 else 32)], M.INK, 1)
+        cx = 20 + g * 200
+        sp.shadow((cx - 8, 6, cx + 8, 34), 2, 2, 2, 140)
+        M.vgrad(sp, (cx - 8, 6, cx + 8, 34), (236, 236, 232), (170, 170, 166), 2)
+        sp.r((cx - 8, 6, cx + 8, 34), 2, outline=(60, 60, 58), width=1)
+        sp.line([(cx, 8), (cx, 32)], (40, 40, 40), 2)
         strip.paste(sp.image(), (0, f * GAIN_H))
     return save(strip, "gain_strip.png"), frames
 
@@ -143,7 +142,7 @@ def level_strip():
         sp = Sprite(LEV_W, LEV_H)
         for i in range(10):
             col = (255, 60, 40) if i == 9 else ((255, 190, 40) if i >= 7 else (70, 230, 120))
-            x, y = 8 + i * 17, 8
+            x, y = 8 + i * 15, 8
             if i < f:
                 M.glow(sp, x, y, 7, col, 130)
             sp.r((x - 6, y - 5, x + 6, y + 5), 2, fill=col if i < f else tuple(v // 4 for v in col), outline=(40, 40, 40), width=1)
@@ -204,7 +203,7 @@ def arrow(p, param, ch, cx, cy, w=36, h=28, size=12):
 def base_canvas(tabname):
     c = M.C()
     M.header(c, tabname)   # draws the wordmark, badge and (static) master; the master is repainted below without its moving parts
-    c.r((840, 6, 1240, 78), 4, fill=M.PLATE)   # clear the mock-up's master, then draw the empty one
+    c.r((700, 6, 1240, 78), 4, fill=M.PLATE)   # clear the mock-up's master, then draw the empty one
     master_bg(c)
     return c
 
