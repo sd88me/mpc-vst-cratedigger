@@ -93,7 +93,7 @@ class Page:
         self.kids.append(entry(label or param, "cd_" + nm, {"version": 1, "handleName": "Data"}, "%d %d %d %d" % (cx - sw / 2, cy - PAD_TOP - h / 2, sw, sh),
                                remap=P(param), focus="Yes", ind=ind))
 
-    def lcd_text(self, key, x, y, w, size=16, h=None, just="left verticallyCentred", handle="Data", colour="ffecf0ff"):
+    def lcd_text(self, key, x, y, w, size=16, h=None, just="left verticallyCentred", handle="Data", colour="ff0a2410"):
         h = h or int(size * 1.5)
         e = label("Value", "%d %d %d %d" % (x, y - h / 2, w, h), remap=[("Data", P(key)), ("Text", P(key))] if handle == "Text" else P(key),
                   just=just, colour=colour, style="SemiBold", case="Original", h=th(size))
@@ -258,13 +258,13 @@ def row_def(w, h):
     key = "cd_row%dx%d" % (w, h)
     if key not in DEFKEYS:
         on = Sprite(w, h)
-        on.r((0, 0, w - 1, h - 1), 4, fill=(66, 104, 230))
-        on.r((0, 0, w - 1, h - 1), 4, outline=(150, 176, 255), width=1)
+        on.r((0, 0, w - 1, h - 1), 4, fill=(96, 176, 80))
+        on.r((0, 0, w - 1, h - 1), 4, outline=(18, 60, 26), width=2)
         offs = Sprite(w, h)
         add_def(key, component([
             entry("Button", "Button", {"version": 1, "onImage": save(on.image(), "row_on.png"), "offImage": save(offs.image(), "row_off.png"),
                                        "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data"}, "0 0 %d %d" % (w, h)),
-            entry("Value", "Label", {"version": 1, "textStyle": text_style(h=th(19), colour="ffecf0ff", just="left verticallyCentred", case="Original"),
+            entry("Value", "Label", {"version": 1, "textStyle": text_style(h=th(19), colour="ff0a2410", just="left verticallyCentred", case="Original"),
                                      "type": "Value", "handleName": "Data"}, "10 0 %d %d" % (w - 14, h)),
         ], actions=[act("Mouse Down", "Toggle Switch"), act("Enter Pressed", "Toggle Switch")]))
     return key
@@ -300,7 +300,7 @@ def build_play():
     M.bracket(c, 816, 1220, 474, "RESULTS  /  SEARCH")
     p.key("page_prev", "◄ PAGE", "cream", 880, 540, 108, 62, size=14)
     p.key("page_next", "PAGE ►", "cream", 1000, 540, 108, 62, size=14)
-    p.key("search", "SEARCH", "dark", 1130, 540, 108, 62, size=14)
+    p.key("search", "SEARCH", "red", 1130, 540, 108, 62, size=14)
     add_master(p)
     p.qgroup((40, 456, 780, 614), ["rewind_15", "play_pause", "stop", "forward_15"])
     p.qgroup((796, 456, 1240, 614), ["transport_sync", "search", "page", "gain"])
@@ -325,16 +325,20 @@ def build_filters():
         p.lcd_text(key, x0 + 52, y0 + 20, 520, size=34, h=48, handle="Text")
     M.lt(c, (66 + 590 + 56, 186 + 2 * 66 + 12), "STYLE FOLLOWS GENRE", 15, dim=True)
     M.lt(c, (66 + 590 + 56, 186 + 2 * 66 + 40), "COUNTRY FOLLOWS REGION", 15, dim=True)
-    M.plate(c, (40, 414, 1240, 614), "DISCOGS FILTERS")
+    BLUE, WHITE = (44, 96, 144), (244, 244, 236)
+    M.plate(c, (40, 414, 1240, 614), "DISCOGS FILTERS", color=BLUE, ink=WHITE)
     for i, (key, cap) in enumerate(FILTERS):
         cx = 142 + i * 188
-        M.knob(c, cx, 510, 34, 0.0, None, big=True, numbers=False, only_ruler=True)
-        c.t((cx, 450), cap, 11, M.INK, "mm", "b")
-        add_knob(p, key, cx, 510, 34)
-        arrow(p, key + "_prev", "◄", cx - 42, 580)
-        arrow(p, key + "_next", "►", cx + 42, 580)
-    p.key("search", "SEARCH", "dark", 1110, 520, 190, 62, size=16)
-    c.t((1110, 566), "SEARCH DISCOGS", 9, M.INK)
+        # the same number and name as the LCD cell above, the knob, a window repeating the cell's value, the arrows
+        c.t((cx, 450), "%02d  %s" % (i + 1, cap), 12, WHITE, "mm", "tb")
+        M.knob(c, cx, 498, 30, 0.0, None, big=True, numbers=False, only_ruler=True, ruler_ink=WHITE)
+        add_knob(p, key, cx, 498, 30)
+        M.lcd_mini(c, (cx - 72, 538, cx + 72, 566))
+        p.lcd_text(key, cx - 68, 552, 136, size=15, h=22, just="horizontallyCentred verticallyCentred", handle="Text")
+        arrow(p, key + "_prev", "◄", cx - 42, 592, h=26)
+        arrow(p, key + "_next", "►", cx + 42, 592, h=26)
+    p.key("search", "SEARCH", "red", 1110, 520, 190, 62, size=16)
+    c.t((1110, 566), "SEARCH DISCOGS", 9, (244, 244, 236))
     add_master(p)
     p.qgroup((40, 420, 830, 610), ["genre", "style", "decade", "region"])
     p.qgroup((806, 424, 1240, 610), ["country", "search"])
@@ -396,7 +400,7 @@ def build_find():
     M.brushed(c, (40, 540, 1240, 616))
     M.bracket(c, 56, 1224, 556, "SEARCH")
     p.key("keys", "KEYBOARD", "dark", 150, 590, 160, 40, size=13)
-    p.key("find_search", "SEARCH", "dark", 1110, 590, 200, 40, size=15)
+    p.key("find_search", "SEARCH", "red", 1110, 590, 200, 40, size=15)
     add_master(p)
     p.qgroup((316, 356, 1240, 530), ["source", "channel", "min_len", "max_len"])
     p.qgroup((40, 540, 1240, 616), ["music", "keys", "find_search", "gain"])
@@ -405,8 +409,7 @@ def build_find():
     plate_img = Sprite(1280, 276)
     plate_img.d.rectangle([0, 0, 1280 * S, 276 * S], fill=M.SILK)
     plate_img.line([(0, 0), (1280, 0)], (60, 60, 58), 2)
-    plate_img.t((44, 16), "KEYBOARD", 10, M.INK, "lm", "b")
-    plate_img.line([(130, 16), (1236, 16)], (120, 120, 116), 1)
+    M.title_rule(plate_img, 44, 1236, 16, "KEYBOARD")
     pimg = save(plate_img.image(), "kb_plate.png")
     add_def("cd_kbplate", component([entry("Button", "Button", {"version": 1, "onImage": pimg, "offImage": pimg, "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data"}, "0 0 1280 276")],
                                     actions=[act("Mouse Down", "Q-Link")]))
@@ -417,7 +420,7 @@ def build_find():
         for k, ch in enumerate(row):
             p.key("k_" + ch, ch, "blue" if ri == 0 else "cream", x0 + k * 116, 382 + ri * 52 + 22, 100, 42, size=18, ind=ind, nm="kb_" + ch)
     for param, lab, cx, cy, w, col in [("k_hide", "HIDE", 130, 594, 200, "dark"), ("k_space", "SPACE", 520, 594, 520, "cream"), ("k_clear", "CLEAR", 880, 594, 190, "dark"),
-                                       ("k_send", "SEARCH", 1130, 594, 220, "dark"), ("k_back", "BACK", 1180, 551, 150, "dark")]:
+                                       ("k_send", "SEARCH", 1130, 594, 220, "red"), ("k_back", "BACK", 1180, 551, 150, "dark")]:
         p.key(param, lab, col, cx, cy, w, 40, size=14, ind=ind, nm="kb_" + param)
     return p, c
 
@@ -473,7 +476,7 @@ def preview(pages, tabs):
                 rp = e["handle remapping"]["map"][0]["value"] if e["handle remapping"]["map"] else None
                 key = LOCK[int(rp.split()[1])] if rp else ""
                 txt = SAMPLE.get(key, ROWS[int(key.split("_")[1]) - 1] if key.startswith("result_") else key)
-                d.text((x + 2, y + h / 2), txt, font=M.ImageFont.truetype(M.TIT, int(float(cd["data"]["textStyle"]["font"]["height"]) * TUI_PX)), fill=(236, 240, 255), anchor="lm")
+                d.text((x + 2, y + h / 2), txt, font=M.ImageFont.truetype(M.TIT, int(float(cd["data"]["textStyle"]["font"]["height"]) * TUI_PX)), fill=(8, 38, 14), anchor="lm")
             elif cd["type"] in defs:
                 comp = defs[cd["type"]]
                 for sub in comp["componentsData"]:
@@ -492,7 +495,7 @@ def preview(pages, tabs):
                         k = 30 if "gain" in sd["data"]["filmStrip"] else 20
                         im.alpha_composite(st.crop((0, fh * k, st.width, fh * (k + 1))), (int(x + sx), int(y + sy)))
                     elif sd["type"] == "Label":
-                        d.text((x + sx + 10, y + sy + sh / 2), ROWS[int(cd["name"].split()[-1]) - 1] if "row" in cd["type"] else "", font=M.ImageFont.truetype(M.TIT, int(float(sd["data"]["textStyle"]["font"]["height"]) * TUI_PX)), fill=(236, 240, 255), anchor="lm")
+                        d.text((x + sx + 10, y + sy + sh / 2), ROWS[int(cd["name"].split()[-1]) - 1] if "row" in cd["type"] else "", font=M.ImageFont.truetype(M.TIT, int(float(sd["data"]["textStyle"]["font"]["height"]) * TUI_PX)), fill=(8, 38, 14), anchor="lm")
         os.makedirs(os.path.join(ROOT, "build", "preview"), exist_ok=True)
         im.convert("RGB").save(os.path.join(ROOT, "build", "preview", "%s.png" % p.name.lower()))
 

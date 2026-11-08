@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Mock-ups of a redrawn Crate Digger skin, v4 ("S-series rack sampler"): the proportions and materials of the late-80s rack samplers, studied from
+"""Art primitives and mock-ups of the Crate Digger skin. The look is now v5 "MPC60": putty body, slate cheeks, bright green LCD with dark ink, cream keys,
+red accent keys, black knobs, centred silk-screen section titles (the older functions below still draw the v4 mock-up pages). Was v4 ("S-series rack sampler"): the proportions and materials of the late-80s rack samplers, studied from
 photos: off-white faceplate with rack ears, deep blue LCD with F1..F8 tabs along its lower edge, a brushed SCREEN FUNCTION panel with the keys under
 it, grey-blue plates, knurled knobs, printed legends and a printed key guide. One main LCD per tab carries the readouts, so no duplicate status
 strips. No maker's name or logo. Pictures only, no TUI wiring:   python3 tools/mockup_skin.py   ->  docs/skin-mockups/{play,filters,find,find_keys}.png"""
@@ -17,14 +18,21 @@ TIT = next((f for f in (os.path.expanduser("~/mpc-vst-dx7/fonts/TitilliumWeb-Sem
 TITB = next((f for f in (os.path.expanduser("~/mpc-vst-airwin2rack/tools/art/fonts/TitilliumWeb-Bold.ttf"), os.path.expanduser("~/mpc-vst-plugins-v1/tools/html_art/fonts/TitilliumWeb-Bold.ttf"), SANSB) if os.path.exists(f)))
 S = 2
 W, H = 1280, 628
-PLATE, EAR, EDGE = (214, 214, 208), (196, 196, 190), (150, 150, 146)           # off-white faceplate, rack ears
+PLATE, EAR, EDGE = (198, 196, 186), (84, 86, 92), (50, 52, 56)                   # putty faceplate, slate side cheeks
 BLUEG, BLUEG2, BLUEG3 = (146, 160, 178), (112, 128, 148), (86, 100, 120)         # grey-blue plates
-LCD_BG, LCD_BG2, LCD_FG, LCD_DIM = (24, 52, 170), (14, 34, 124), (236, 240, 255), (130, 156, 235)
+LCD_BG, LCD_BG2, LCD_FG, LCD_DIM = (96, 206, 92), (176, 248, 150), (8, 38, 14), (44, 112, 52)   # bright green glass, inverse text, ink, dim ink
 KEYC, KEYD, INK, RED, BLACK = (238, 238, 232), (100, 104, 112), (30, 30, 32), (196, 40, 32), (22, 22, 24)
 
 
 def font(size, kind="s"):
     return ImageFont.truetype({"s": SANS, "b": SANSB, "k": SERIFB, "m": MONO, "t": TIT, "tb": TITB}[kind], int(size * S))
+
+
+def vgrad_raw(c, box, top, bot):
+    x0, y0, x1, y1 = [int(v * S) for v in box]
+    for k in range(y1 - y0):
+        t = k / max(1, y1 - y0 - 1)
+        c.d.line([(x0, y0 + k), (x1, y0 + k)], fill=tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3)))
 
 
 class C:
@@ -36,13 +44,10 @@ class C:
             x, y = random.randrange(W * S), random.randrange(H * S)
             v = random.randint(-6, 6)
             self.d.point((x, y), fill=(255 if v > 0 else 0,) * 3 + (abs(v) * 2,))
-        for x0, x1 in ((0, 22), (W - 22, W)):   # rack ears with their oval holes
-            self.d.rectangle([x0 * S, 0, x1 * S, H * S], fill=EAR)
+        for x0, x1 in ((0, 22), (W - 22, W)):   # slate side cheeks
+            vgrad_raw(self, (x0, 0, x1, H), (98, 100, 106), (74, 76, 82))
         for x in (22, W - 22):
             self.d.line([(x * S, 0), (x * S, H * S)], fill=EDGE, width=2 * S)
-        for x in (11, W - 11):
-            for y in (60, H - 60):
-                self.d.rounded_rectangle([(x - 5) * S, (y - 9) * S, (x + 5) * S, (y + 9) * S], radius=5 * S, fill=(120, 120, 118), outline=(90, 90, 88), width=S)
 
     def r(self, box, rad=8, fill=None, outline=None, width=1):
         self.d.rounded_rectangle([c * S for c in box], radius=rad * S, fill=fill, outline=outline, width=int(width * S))
@@ -97,50 +102,68 @@ def screws(c, box, inset=9):
 
 
 def lcd(c, box):
-    """The recessed black bezel and the deep blue dot-matrix screen: pixel grid, lighter top, inner shadow, a diagonal glass glare."""
+    """The recessed dark slate bezel and the bright green dot-matrix glass: a pixel grid, a lighter top, an inner shadow, a faint glare."""
     x0, y0, x1, y1 = box
-    c.shadow(box, 4, 5, 3, 140)
-    c.r(box, 5, fill=BLACK, outline=(70, 70, 74), width=2)
-    c.r((x0 + 2, y0 + 2, x1 - 2, y1 - 2), 4, outline=(255, 255, 255, 38), width=1)   # bevel catch-light
+    c.shadow(box, 4, 5, 3, 150)
+    vgrad(c, box, (74, 76, 82), (44, 46, 50), 5)
+    c.r(box, 5, outline=(24, 24, 26), width=2)
+    c.r((x0 + 2, y0 + 2, x1 - 2, y1 - 2), 4, outline=(255, 255, 255, 46), width=1)
     ix0, iy0, ix1, iy1 = x0 + 10, y0 + 10, x1 - 10, y1 - 10
-    vgrad(c, (ix0, iy0, ix1, iy1), (34, 66, 186), (18, 42, 140))
+    vgrad(c, (ix0, iy0, ix1, iy1), (112, 222, 104), (84, 196, 84))
     for x in range(int(ix0), int(ix1), 3):
-        c.d.line([(x * S, iy0 * S), (x * S, iy1 * S)], fill=(0, 0, 40, 55), width=1)
+        c.d.line([(x * S, iy0 * S), (x * S, iy1 * S)], fill=(10, 60, 20, 34), width=1)
     for y in range(int(iy0), int(iy1), 3):
-        c.d.line([(ix0 * S, y * S), (ix1 * S, y * S)], fill=(0, 0, 40, 55), width=1)
-    for k in range(10):   # inner shadow along the top and left edges
-        c.d.line([(ix0 * S, (iy0 + k) * S), (ix1 * S, (iy0 + k) * S)], fill=(0, 0, 20, 90 - k * 9), width=S)
-        c.d.line([((ix0 + k) * S, iy0 * S), ((ix0 + k) * S, iy1 * S)], fill=(0, 0, 20, 70 - k * 7), width=S)
-    gl = Image.new("RGBA", c.im.size, (0, 0, 0, 0))   # glass glare: a pale wedge across the upper left
-    ImageDraw.Draw(gl).polygon([(ix0 * S, iy0 * S), ((ix0 + (ix1 - ix0) * 0.42) * S, iy0 * S), (ix0 * S, (iy0 + (iy1 - iy0) * 0.55) * S)], fill=(255, 255, 255, 20))
+        c.d.line([(ix0 * S, y * S), (ix1 * S, y * S)], fill=(10, 60, 20, 34), width=1)
+    for k in range(10):
+        c.d.line([(ix0 * S, (iy0 + k) * S), (ix1 * S, (iy0 + k) * S)], fill=(0, 30, 0, 80 - k * 8), width=S)
+        c.d.line([((ix0 + k) * S, iy0 * S), ((ix0 + k) * S, iy1 * S)], fill=(0, 30, 0, 60 - k * 6), width=S)
+    gl = Image.new("RGBA", c.im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(gl).polygon([(ix0 * S, iy0 * S), ((ix0 + (ix1 - ix0) * 0.38) * S, iy0 * S), (ix0 * S, (iy0 + (iy1 - iy0) * 0.5) * S)], fill=(255, 255, 255, 18))
     c.im.paste(gl, (0, 0), gl)
     c.d = ImageDraw.Draw(c.im, "RGBA")
 
 
+def lcd_mini(c, box):
+    """A small green read-out window (one value), same glass as the main LCD."""
+    x0, y0, x1, y1 = box
+    c.shadow(box, 3, 3, 2, 120)
+    vgrad(c, box, (74, 76, 82), (44, 46, 50), 3)
+    c.r(box, 3, outline=(24, 24, 26), width=1)
+    vgrad(c, (x0 + 4, y0 + 4, x1 - 4, y1 - 4), (112, 222, 104), (88, 200, 88))
+
+
 def lt(c, xy, text, size=15, inv=False, dim=False, anchor="lm"):
-    """LCD text: a faint dark shadow one dot down-right, like lit pixels on a dot-matrix panel."""
+    """LCD text: dark ink on the green glass (a one-dot light edge), or bright text when inverse (on a dark bar)."""
     if not inv:
-        c.t((xy[0] + 1, xy[1] + 1), text, size, (6, 14, 70), anchor, "t")
+        c.t((xy[0] + 1, xy[1] + 1), text, size, (150, 236, 140) if not dim else (130, 220, 124), anchor, "t")
     c.t(xy, text, size, LCD_BG2 if inv else (LCD_DIM if dim else LCD_FG), anchor, "t")
 
 
 def invbar(c, x0, y0, x1, y1):
-    c.d.rectangle([x0 * S, y0 * S, x1 * S, y1 * S], fill=LCD_FG)
+    c.d.rectangle([x0 * S, y0 * S, x1 * S, y1 * S], fill=(16, 52, 22))
 
 
-SILK = (198, 198, 192)   # a slightly darker grey than the faceplate: a printed (silk-screened) section, flat
+SILK = (188, 186, 176)
 
 
-SILK = (197, 197, 191)   # a slightly darker grey than the faceplate: a printed (silk-screened) section, flat, no outline
+SILK = (188, 186, 176)   # a slightly darker putty: a printed (silk-screened) section, flat, no outline
 
 
-def plate(c, box, title=None, color=None):
-    """A silk-screened section of the faceplate: flat grey, the title printed top-left with a thin rule."""
+def title_rule(c, x0, x1, y, text, ink=INK, rule=(96, 94, 86)):
+    """A silk-screened title in the MPC60 manner: -- TITLE -- centred, thin rules to both ends."""
+    mid = (x0 + x1) / 2
+    tw = c.d.textlength(text, font=font(12, "tb")) / S
+    c.t((mid, y), text, 12, ink, "mm", "tb")
+    c.line([(x0, y), (mid - tw / 2 - 8, y)], rule, 1)
+    c.line([(mid + tw / 2 + 8, y), (x1, y)], rule, 1)
+
+
+def plate(c, box, title=None, color=None, ink=INK):
+    """A silk-screened section of the faceplate: flat putty (or a flat colour), the title printed centred with rules."""
     x0, y0, x1, y1 = box
-    c.r(box, 4, fill=SILK)
+    c.r(box, 4, fill=color or SILK)
     if title:
-        c.t((x0 + 50, y0 + 15), title, 10, INK, "lm", "b")
-        c.line([(x0 + 60 + len(title) * 7.4, y0 + 15), (x1 - 14, y0 + 15)], (120, 120, 116), 1)
+        title_rule(c, x0 + 14, x1 - 14, y0 + 15, title, ink, (96, 94, 86) if color is None else (230, 236, 244))
 
 
 def brushed(c, box):
@@ -149,14 +172,12 @@ def brushed(c, box):
 
 
 def bracket(c, x0, x1, y, text):
-    """A printed section title: left-aligned small caps and a rule to the right edge."""
-    x0 += 36   # leave the corner free for the MPC's Q-Link tag
-    c.t((x0, y), text, 10, INK, "lm", "b")
-    c.line([(x0 + 10 + len(text) * 7.6, y), (x1, y)], (120, 120, 116), 1)
+    title_rule(c, x0, x1, y, text)
 
 
-KEYCOL = {"cream": ((250, 250, 245), (214, 214, 206), (88, 88, 82), INK), "dark": ((124, 128, 136), (82, 86, 94), (46, 48, 54), (245, 245, 240)),
-          "blue": ((196, 218, 242), (150, 182, 218), (70, 96, 130), (24, 36, 56))}
+KEYCOL = {"cream": ((248, 242, 218), (226, 218, 184), (112, 106, 84), INK), "dark": ((104, 104, 108), (66, 66, 70), (34, 34, 36), (240, 238, 230)),
+          "red": ((206, 56, 48), (150, 24, 22), (70, 12, 10), (255, 244, 238)), "blue": ((248, 242, 218), (226, 218, 184), (112, 106, 84), INK),
+          "white": ((255, 252, 240), (232, 226, 200), (112, 106, 84), INK)}
 LAMP = {"green": (70, 230, 120), "red": (255, 60, 40), "amber": (255, 176, 40)}
 
 
@@ -183,26 +204,24 @@ def key(c, cx, cy, w, h, label=None, color="cream", lit=False, size=13, sub=None
         c.t((cx, cy + 12), sub, 8, ink, "mm")
 
 
-def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), body=(36, 36, 40), numbers=True, ruler=True, only_ruler=False):
+def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), body=(36, 36, 40), numbers=True, ruler=True, only_ruler=False, ruler_ink=None):
     """Knurled knob: big = the grey-blue CURSOR/DATA style with machined rings, otherwise black with a white pointer. A printed dot ruler
     with 0 / 5 / 10 around it, a soft specular highlight, a drop shadow."""
     if ruler or only_ruler:
         for i in range(11):
             a = math.radians(135 + i * 27)
-            c.ell(cx + math.cos(a) * (r + 10), cy + math.sin(a) * (r + 10), 1.7, 1.7, fill=INK)
+            c.ell(cx + math.cos(a) * (r + 10), cy + math.sin(a) * (r + 10), 1.7, 1.7, fill=ruler_ink or INK)
             if numbers and i in (0, 5, 10):
-                c.t((cx + math.cos(a) * (r + 21), cy + math.sin(a) * (r + 21)), str(i), 8, INK)
+                c.t((cx + math.cos(a) * (r + 21), cy + math.sin(a) * (r + 21)), str(i), 8, ruler_ink or INK)
     if only_ruler:
         return
     c.shadow((cx - r, cy - r, cx + r, cy + r), r, 7, 7, 160)
     if big:
-        c.ell(cx, cy, r, r, fill=(66, 70, 80), outline=(34, 36, 42), width=2)
-        for i in range(64):   # knurled skirt
-            a = math.radians(i * 5.625)
-            c.line([(cx + math.cos(a) * (r - 4), cy + math.sin(a) * (r - 4)), (cx + math.cos(a) * (r - 1), cy + math.sin(a) * (r - 1))], (110, 114, 126), 1)
-        cap = r - 7
-        vgrad(c, (cx - cap, cy - cap, cx + cap, cy + cap), (186, 194, 208), (146, 154, 170), int(cap))   # a flat cap, lit from the top
-        c.ell(cx, cy, cap, cap, outline=(70, 76, 90), width=1)
+        c.ell(cx, cy, r, r, fill=(22, 22, 24), outline=(0, 0, 0), width=2)           # skirt
+        c.ell(cx, cy + 1, r - 3, r - 3, fill=(40, 40, 44))
+        cap = r - 6
+        vgrad(c, (cx - cap, cy - cap, cx + cap, cy + cap), (86, 86, 92), (52, 52, 56), int(cap))   # matte cap, lit from above
+        c.ell(cx, cy, cap, cap, outline=(110, 110, 116), width=1)
     else:
         c.ell(cx, cy, r, r, fill=BLACK, outline=(0, 0, 0), width=2)
         for i in range(44):
@@ -212,7 +231,7 @@ def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), bod
         c.ell(cx - 1, cy - 2, r - 14, r - 14, fill=(60, 60, 64))
         c.ell(cx - r * 0.2, cy - r * 0.3, r * 0.4, r * 0.25, fill=(255, 255, 255, 34))
     a = math.radians(135 + value * 270)
-    c.line([(cx + math.cos(a) * (r * 0.30), cy + math.sin(a) * (r * 0.30)), (cx + math.cos(a) * (r - 6), cy + math.sin(a) * (r - 6))], pointer if not big else (28, 32, 44), 4)
+    c.line([(cx + math.cos(a) * (r * 0.30), cy + math.sin(a) * (r * 0.30)), (cx + math.cos(a) * (r - 6), cy + math.sin(a) * (r - 6))], (246, 246, 240), 4)
     if name:
         c.t((cx, cy - r - 32), name, 10, INK)
 
@@ -242,23 +261,10 @@ def master(c, gain=0.5):
 
 
 def header(c, tabname):
-    """The wordmark in the Dexed manner: bold letters with horizontal stripe cuts, a tagline and a model badge."""
-    txt = "CRATE DIGGER"
-    f = font(30, "k")
-    mask = Image.new("L", (W * S, 70 * S), 0)
-    ImageDraw.Draw(mask).text((44 * S, 36 * S), txt, font=f, fill=255, anchor="lm")
-    for y in range(0, 70 * S, 6 * S):
-        ImageDraw.Draw(mask).line([(0, y + 3 * S), (W * S, y + 3 * S)], fill=0, width=S)
-    grad = Image.new("RGB", (W * S, 70 * S))
-    gd = ImageDraw.Draw(grad)
-    for y in range(70 * S):
-        t = y / (70 * S)
-        gd.line([(0, y), (W * S, y)], fill=(int(214 - 56 * t), int(52 - 22 * t), int(40 - 18 * t)))
-    c.im.paste(grad, (0, 0), mask)
-    c.d = ImageDraw.Draw(c.im, "RGBA")
-    c.t((44, 62), "STEREO DIGITAL RECORD SAMPLER", 8, INK, "lm")
-    c.line([(44, 71), (330, 71)], (60, 60, 60, 160), 1)
-    c.d.text((560 * S, 46 * S), "DIG 1", font=font(24, "b"), fill=(214, 214, 208), anchor="mm", stroke_width=S, stroke_fill=(120, 120, 116))
+    """The wordmark in the MPC60 manner: a flat red serif, a small italic line under it, a model badge in outline letters."""
+    c.t((44, 34), "CRATE DIGGER", 30, (190, 34, 40), "lm", "k")
+    c.t((46, 62), "digital record sampler", 11, (110, 30, 34), "lm", "s")
+    c.d.text((560 * S, 46 * S), "DIG 1", font=font(26, "b"), fill=PLATE, anchor="mm", stroke_width=int(1.5 * S), stroke_fill=(70, 70, 66))
     master(c)
 
 
