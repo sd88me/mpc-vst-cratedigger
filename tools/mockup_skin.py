@@ -268,7 +268,6 @@ def header(c, tabname):
     """The wordmark in the MPC60 manner: a flat red serif, a small italic line under it, a model badge in outline letters."""
     c.t((44, 34), "CRATE DIGGER", 30, (190, 34, 40), "lm", "k")
     c.t((46, 62), "digital record sampler", 11, (110, 30, 34), "lm", "s")
-    c.d.text((560 * S, 46 * S), "DIG 1", font=font(26, "b"), fill=PLATE, anchor="mm", stroke_width=int(1.5 * S), stroke_fill=(70, 70, 66))
     master(c)
 
 

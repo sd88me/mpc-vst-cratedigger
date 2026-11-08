@@ -318,7 +318,7 @@ def build_filters():
     M.lcd(c, (40, 82, 1240, 400))
     lcd_header_static(c, 66, 112, 1212)
     lcd_header_live(p, 66, 112, 1212)
-    BLUE, WHITE = (44, 96, 144), (244, 244, 236)
+    BLUE, WHITE = (62, 80, 100), (236, 238, 232)   # a dull slate blue, like the MPC60 data-entry block
     CEN = "horizontallyCentred verticallyCentred"
     # the LCD in five columns, each directly above the knob of the same number and name
     for i, (key, cap) in enumerate(FILTERS):
