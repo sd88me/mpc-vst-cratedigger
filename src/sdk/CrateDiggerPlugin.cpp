@@ -558,6 +558,7 @@ public:
             }
             case T_FLOAT: addParam(mpc::floatParam(s.key, s.name, s.min, s.max, s.def, "", 2)); break;
             case T_READOUT: addParam(mpc::intParam(s.key, s.name, 0, 255, 0)); break;   // a counter: the text is the value text
+            case T_LEVEL: addParam(mpc::intParam(s.key, s.name, 0, 10, 0)); break;      // output level meter: lamps lit, 0..10
             default: addParam(mpc::intParam(s.key, s.name, 0, 1, 0)); break;             // triggers, option, slots
             }
         }
@@ -592,6 +593,7 @@ public:
             if (now != e_.transport_playing.load()) { e_.transport_playing.store(now); e_.transport_edge.store(now ? 1 : -1); }
         }
         const int n = ctx.numFrames;
+        float pkL = 0.0f, pkR = 0.0f;
         uint32_t r = e_.rpos.load(), avail = e_.wpos.load() - r;
         float *l = ctx.outputs[0], *rr = ctx.outputs[1];
         for (int i = 0; i < n; ++i)
@@ -601,9 +603,14 @@ public:
                 uint32_t k = (r + (uint32_t)i) & (RING - 1);
                 l[i] = e_.ring[k * 2] * (1.0f / 32768.0f);
                 rr[i] = e_.ring[k * 2 + 1] * (1.0f / 32768.0f);
+                pkL = std::max(pkL, std::fabs(l[i]));
+                pkR = std::max(pkR, std::fabs(rr[i]));
             }
             else l[i] = rr[i] = 0.0f;   // underrun: silence
         }
+        // the level meter: the block peak, falling away between blocks (read by the worker, which tells the host)
+        peakL_.store(std::max(pkL, peakL_.load() * 0.96f));
+        peakR_.store(std::max(pkR, peakR_.load() * 0.96f));
         e_.rpos.store(r + ((uint32_t)n < avail ? (uint32_t)n : avail));
     }
 
@@ -808,8 +815,19 @@ private:
         case T_FLOAT: return e_.gain;
         case T_SLOT: return current_result(&e_) == e_.page * SLOTS + (i - P_RESULT_1) ? 1.0f : 0.0f;
         case T_TRIGGER: return is_sticky(i) && sticky_on(&e_, i) ? 1.0f : 0.0f;
+        case T_LEVEL: return lamps(i == P_LEVEL_L ? peakL_.load() : peakR_.load());
         default: return 0.0f;
         }
+    }
+
+    // peak -> lit lamps 0..10 on a dB ladder (-48 .. 0)
+    static float lamps(float peak)
+    {
+        static const float th[10] = {-48, -36, -24, -18, -12, -9, -6, -3, -1, 0};
+        const float db = 20.0f * std::log10(std::max(peak, 1e-6f));
+        int n = 0;
+        for (float t : th) if (db >= t - 0.01f) ++n;
+        return (float)n;
     }
 
     // One worker pass (every ~50 ms): release buttons, keep the host in step with the state, ask it to re-read changed text.
@@ -914,6 +932,7 @@ private:
     std::thread worker_;
     std::atomic<bool> quit_{false}, resync_{false}, dirty_{false}, sync_{false};
     std::atomic<long long> pendingAt_{0};
+    std::atomic<float> peakL_{0.0f}, peakR_{0.0f};
     int pendingGenre_ = 0;
     std::atomic<bool> *held_ = nullptr, *release_ = nullptr;
     float *last_ = nullptr;
