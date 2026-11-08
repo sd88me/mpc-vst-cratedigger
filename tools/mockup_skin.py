@@ -89,16 +89,8 @@ def glow(c, cx, cy, r, color, alpha=170):
 
 
 def screws(c, box, inset=9):
-    x0, y0, x1, y1 = box
-    for i, (x, y) in enumerate(((x0 + inset, y0 + inset), (x1 - inset, y0 + inset), (x0 + inset, y1 - inset), (x1 - inset, y1 - inset))):
-        c.ell(x, y, 5, 5, fill=(176, 178, 180), outline=(96, 98, 100), width=1)
-        c.ell(x - 1, y - 1, 3, 3, fill=(206, 208, 210))
-        a = math.radians(20 + i * 37)
-        c.line([(x - math.cos(a) * 4, y - math.sin(a) * 4), (x + math.cos(a) * 4, y + math.sin(a) * 4)], (70, 72, 74), 1.4)
-        c.line([(x - math.sin(a) * 4, y + math.cos(a) * 4), (x + math.sin(a) * 4, y - math.cos(a) * 4)], (70, 72, 74), 1.4)
-
-
-SEG = {"0": "abcdef", "1": "bc", "2": "abdeg", "3": "abcdg", "4": "bcfg", "5": "acdfg", "6": "acdefg", "7": "abc", "8": "abcdefg", "9": "abcdfg", " ": "", "-": "g"}
+    """(none: the panels are silk-screened sections now)"""
+    return
 
 
 def lcd(c, box):
@@ -133,38 +125,27 @@ def invbar(c, x0, y0, x1, y1):
     c.d.rectangle([x0 * S, y0 * S, x1 * S, y1 * S], fill=LCD_FG)
 
 
-def plate(c, box, title=None, color=BLUEG):
-    """A grey-blue printed plate: bevelled edge, a white title strip, screws in the corners."""
-    c.shadow(box, 3, 4, 3, 90)
-    vgrad(c, box, tuple(min(255, v + 14) for v in color), tuple(max(0, v - 10) for v in color), 3)
-    c.r(box, 3, outline=BLUEG3, width=2)
-    c.r((box[0] + 2, box[1] + 2, box[2] - 2, box[3] - 2), 2, outline=(255, 255, 255, 60), width=1)
+SILK = (198, 198, 192)   # a slightly darker grey than the faceplate: a printed (silk-screened) section, flat
+
+
+def plate(c, box, title=None, color=None):
+    """A silk-screened section of the faceplate: flat grey, a thin printed outline, the title printed in the top-left with a rule."""
+    x0, y0, x1, y1 = box
+    c.r(box, 3, fill=SILK, outline=(70, 70, 68), width=1)
     if title:
-        c.t(((box[0] + box[2]) / 2, box[1] + 15), title, 11, (255, 255, 255), "mm", "b")
-        c.line([(box[0] + 40, box[1] + 26), (box[2] - 40, box[1] + 26)], (255, 255, 255, 90), 1)
-    screws(c, box)
+        c.t((x0 + 14, y0 + 15), title, 10, INK, "lm", "b")
+        c.line([(x0 + 24 + len(title) * 7.4, y0 + 15), (x1 - 14, y0 + 15)], (70, 70, 68), 1)
 
 
 def brushed(c, box):
-    """The SCREEN FUNCTION panel: brushed steel in a frame, a step below the faceplate, with screws."""
-    x0, y0, x1, y1 = box
-    c.shadow(box, 2, 5, 4, 130)
-    vgrad(c, box, (208, 210, 212), (180, 182, 184))
-    c.d.rectangle([x0 * S, y0 * S, x1 * S, y1 * S], outline=(110, 112, 114), width=2 * S)
-    c.d.line([((x0 + 2) * S, (y0 + 2) * S), ((x1 - 2) * S, (y0 + 2) * S)], fill=(255, 255, 255, 140), width=S)
-    random.seed(2)
-    for y in range(int(y0 + 3), int(y1 - 3)):
-        v = random.randint(-16, 16)
-        c.d.line([((x0 + 3) * S, y * S), ((x1 - 3) * S, y * S)], fill=(255 if v > 0 else 0,) * 3 + (abs(v) + 4,), width=S)
-    screws(c, box, 8)
+    """A silk-screened key section (flat grey, printed outline); the title is printed by bracket()."""
+    c.r(box, 3, fill=SILK, outline=(70, 70, 68), width=1)
 
 
 def bracket(c, x0, x1, y, text):
-    mid = (x0 + x1) / 2
-    tw = len(text) * 7.6 + 16
-    c.line([(x0, y), (mid - tw / 2, y)], INK, 1)
-    c.line([(mid + tw / 2, y), (x1, y)], INK, 1)
-    c.t((mid, y), text, 10, INK)
+    """A printed section title: left-aligned small caps and a rule to the right edge."""
+    c.t((x0, y), text, 10, INK, "lm", "b")
+    c.line([(x0 + 10 + len(text) * 7.6, y), (x1, y)], (70, 70, 68), 1)
 
 
 KEYCOL = {"cream": ((250, 250, 245), (214, 214, 206), (88, 88, 82), INK), "dark": ((126, 130, 138), (84, 88, 96), (50, 52, 58), (245, 245, 240)),
@@ -261,12 +242,10 @@ def lcd_head(c, x0, y0, x1, now="OPEN SESAME - TREVOR NOVA", status="STREAMING",
 
 def volume_panel(c, gain=0.5, extra=None):
     """The right-hand plate: MAIN VOLUME (the plugin's gain) and the stereo level meter (two rows of lamps), then page extras."""
-    plate(c, (1004, 14, 1250, 614), None)
-    c.t((1127, 36), "MAIN VOLUME", 10, (255, 255, 255), "mm", "b")
-    c.line([(1030, 47), (1224, 47)], (255, 255, 255, 90), 1)
+    plate(c, (1004, 14, 1250, 614), "MAIN VOLUME")
     knob(c, 1127, 118, 36, gain)
     c.t((1127, 182), "GAIN", 9, INK)
-    c.t((1127, 214), "LEVEL", 10, (255, 255, 255), "mm", "b")
+    c.t((1127, 214), "LEVEL", 10, INK, "mm", "b")
     for row, lit_n in enumerate((6, 5)):   # L and R
         c.t((1034, 236 + row * 22), "LR"[row], 9, INK)
         for i in range(10):
@@ -302,9 +281,9 @@ def play():
     brushed(c, (40, 456, 540, 614))
     bracket(c, 60, 520, 474, "TRANSPORT")
     for i, (lab, col) in enumerate([("◄◄", "cream"), ("▶ ❚❚", "green"), ("■", "white"), ("►►", "cream")]):
-        key(c, 90 + i * 115, 540, 98, 62, lab, col, size=20 if i != 1 else 18)
+        key(c, 110 + i * 118, 540, 98, 62, lab, col, size=20 if i != 1 else 18)
     for i, t in enumerate(["BACK 15 S", "PLAY / PAUSE", "STOP", "FORWARD 15 S"]):
-        c.t((90 + i * 115, 584), t, 9, INK)
+        c.t((110 + i * 118, 584), t, 9, INK)
     brushed(c, (556, 456, 988, 614))
     bracket(c, 576, 968, 474, "RESULTS  /  SEARCH")
     for i, (lab, col, lit) in enumerate([("◄ PAGE", "cream", False), ("PAGE ►", "cream", False), ("SYNC", "amber", True), ("SEARCH", "red", False)]):
@@ -374,9 +353,10 @@ def find(keys=False):
     volume_panel(c, 0.5)
     if keys:
         c.shadow((0, 340, W, H), 0, 8, -3, 170)
-        c.d.rectangle([0, 340 * S, W * S, H * S], fill=BLUEG2)
-        c.line([(0, 340), (W, 340)], (60, 70, 90), 2)
-        c.t((640, 354), "KEYBOARD", 10, (255, 255, 255), "mm", "b")
+        c.d.rectangle([0, 340 * S, W * S, H * S], fill=SILK)
+        c.line([(0, 340), (W, 340)], (70, 70, 68), 2)
+        c.t((44, 356), "KEYBOARD", 10, INK, "lm", "b")
+        c.line([(130, 356), (1236, 356)], (70, 70, 68), 1)
         rows = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"]
         for ri, row in enumerate(rows):
             x0 = 118 + [0, 0, 58, 174][ri]
