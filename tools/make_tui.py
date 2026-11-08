@@ -238,19 +238,19 @@ def lcd_frame(c, box):
 
 
 def lcd_header_static(c, x0, y0, x1):
-    """The three readouts every tab shows on its LCD: NOW (big) over STATUS / TIME / SEARCH."""
+    """The readouts every tab shows on its LCD: NOW (big) with TIME at the top right, then STATUS (roomy) and SEARCH."""
     M.lt(c, (x0, 116), "NOW", 13, dim=True)
+    M.lt(c, (1010, 116), "TIME", 13, dim=True)
     M.lt(c, (x0, 156), "STATUS", 13, dim=True)
-    M.lt(c, (500, 156), "TIME", 13, dim=True)
-    M.lt(c, (660, 156), "SEARCH", 13, dim=True)
+    M.lt(c, (676, 156), "SEARCH", 13, dim=True)
     c.d.rectangle([x0 * S, 176 * S, (x1 + 2) * S, 178 * S], fill=M.LCD_DIM)
 
 
 def lcd_header_live(p, x0, y0, x1):
-    p.lcd_text("now_playing", x0 + 66, 114, x1 - x0 - 70, size=30, h=44)
-    p.lcd_text("status", x0 + 74, 156, 380, size=22, h=32)
-    p.lcd_text("time", 500 + 56, 156, 100, size=22, h=32)
-    p.lcd_text("search_status", 660 + 84, 156, x1 - 660 - 84, size=22, h=32)
+    p.lcd_text("now_playing", x0 + 66, 114, 780, size=30, h=44)
+    p.lcd_text("time", 1066, 114, 146, size=26, h=40)
+    p.lcd_text("status", x0 + 74, 156, 520, size=22, h=32)
+    p.lcd_text("search_status", 676 + 84, 156, x1 - 676 - 84, size=22, h=32)
 
 
 def row_def(w, h):
@@ -317,28 +317,26 @@ def build_filters():
     M.lcd(c, (40, 82, 1240, 400))
     lcd_header_static(c, 66, 112, 1212)
     lcd_header_live(p, 66, 112, 1212)
-    for i, (key, cap) in enumerate(FILTERS):
-        col, row = i // 3, i % 3
-        x0, y0 = 66 + col * 590, 186 + row * 66
-        M.lt(c, (x0, y0 + 16), "%02d" % (i + 1), 22)
-        M.lt(c, (x0 + 56, y0 + 52), cap, 13, dim=True)
-        p.lcd_text(key, x0 + 52, y0 + 20, 520, size=34, h=48, handle="Text")
-    M.lt(c, (66 + 590 + 56, 186 + 2 * 66 + 12), "STYLE FOLLOWS GENRE", 15, dim=True)
-    M.lt(c, (66 + 590 + 56, 186 + 2 * 66 + 40), "COUNTRY FOLLOWS REGION", 15, dim=True)
     BLUE, WHITE = (44, 96, 144), (244, 244, 236)
+    CEN = "horizontallyCentred verticallyCentred"
+    # the LCD in five columns, each directly above the knob of the same number and name
+    for i, (key, cap) in enumerate(FILTERS):
+        cx = 142 + i * 188
+        if i:
+            c.d.line([((cx - 94) * S, 192 * S), ((cx - 94) * S, 342 * S)], fill=M.LCD_DIM + (120,), width=S)
+        M.lt(c, (cx, 208), "%02d  %s" % (i + 1, cap), 15, anchor="mm")
+        p.lcd_text(key, cx - 88, 268, 176, size=26, h=44, just=CEN, handle="Text")
+    M.lt(c, (640, 366), "STYLE LIST FOLLOWS GENRE   -   COUNTRY LIST FOLLOWS REGION", 13, dim=True, anchor="mm")
     M.plate(c, (40, 414, 1240, 614), "DISCOGS FILTERS", color=BLUE, ink=WHITE)
     for i, (key, cap) in enumerate(FILTERS):
         cx = 142 + i * 188
-        # the same number and name as the LCD cell above, the knob, a window repeating the cell's value, the arrows
         c.t((cx, 450), "%02d  %s" % (i + 1, cap), 12, WHITE, "mm", "tb")
-        M.knob(c, cx, 498, 30, 0.0, None, big=True, numbers=False, only_ruler=True, ruler_ink=WHITE)
-        add_knob(p, key, cx, 498, 30)
-        M.lcd_mini(c, (cx - 72, 538, cx + 72, 566))
-        p.lcd_text(key, cx - 68, 552, 136, size=15, h=22, just="horizontallyCentred verticallyCentred", handle="Text")
-        arrow(p, key + "_prev", "◄", cx - 42, 592, h=26)
-        arrow(p, key + "_next", "►", cx + 42, 592, h=26)
+        M.knob(c, cx, 512, 34, 0.0, None, big=True, numbers=False, only_ruler=True, ruler_ink=WHITE)
+        add_knob(p, key, cx, 512, 34)
+        arrow(p, key + "_prev", "◄", cx - 44, 582)
+        arrow(p, key + "_next", "►", cx + 44, 582)
     p.key("search", "SEARCH", "red", 1110, 520, 190, 62, size=16)
-    c.t((1110, 566), "SEARCH DISCOGS", 9, (244, 244, 236))
+    c.t((1110, 566), "SEARCH DISCOGS", 9, WHITE)
     add_master(p)
     p.qgroup((40, 420, 830, 610), ["genre", "style", "decade", "region"])
     p.qgroup((806, 424, 1240, 610), ["country", "search"])
@@ -418,9 +416,9 @@ def build_find():
     for ri, row in enumerate(rows):
         x0 = 118 + [0, 0, 58, 174][ri]
         for k, ch in enumerate(row):
-            p.key("k_" + ch, ch, "blue" if ri == 0 else "cream", x0 + k * 116, 382 + ri * 52 + 22, 100, 42, size=18, ind=ind, nm="kb_" + ch)
-    for param, lab, cx, cy, w, col in [("k_hide", "HIDE", 130, 594, 200, "dark"), ("k_space", "SPACE", 520, 594, 520, "cream"), ("k_clear", "CLEAR", 880, 594, 190, "dark"),
-                                       ("k_send", "SEARCH", 1130, 594, 220, "red"), ("k_back", "BACK", 1180, 551, 150, "dark")]:
+            p.key("k_" + ch, ch, "blue" if ri == 0 else "cream", x0 + k * 116, 396 + ri * 46, 100, 40, size=18, ind=ind, nm="kb_" + ch)
+    for param, lab, cx, cy, w, col in [("k_hide", "HIDE", 130, 590, 180, "dark"), ("k_space", "SPACE", 520, 590, 480, "cream"), ("k_clear", "CLEAR", 860, 590, 180, "dark"),
+                                       ("k_send", "SEARCH", 1130, 590, 220, "red"), ("k_back", "BACK", 1180, 534, 150, "dark")]:
         p.key(param, lab, col, cx, cy, w, 40, size=14, ind=ind, nm="kb_" + param)
     return p, c
 
@@ -476,7 +474,8 @@ def preview(pages, tabs):
                 rp = e["handle remapping"]["map"][0]["value"] if e["handle remapping"]["map"] else None
                 key = LOCK[int(rp.split()[1])] if rp else ""
                 txt = SAMPLE.get(key, ROWS[int(key.split("_")[1]) - 1] if key.startswith("result_") else key)
-                d.text((x + 2, y + h / 2), txt, font=M.ImageFont.truetype(M.TIT, int(float(cd["data"]["textStyle"]["font"]["height"]) * TUI_PX)), fill=(8, 38, 14), anchor="lm")
+                cen = "horizontallyCentred" in cd["data"]["textStyle"]["justification"]
+                d.text((x + w / 2 if cen else x + 2, y + h / 2), txt, font=M.ImageFont.truetype(M.TIT, int(float(cd["data"]["textStyle"]["font"]["height"]) * TUI_PX)), fill=(8, 38, 14), anchor="mm" if cen else "lm")
             elif cd["type"] in defs:
                 comp = defs[cd["type"]]
                 for sub in comp["componentsData"]:
