@@ -66,7 +66,7 @@ int main(void) {
     for (int r = 0; r < N_CRATEDIG_REGIONS; r++) g_maxCountry = std::max(g_maxCountry, N_COUNTRIES_BY_REGION[r]);
     AEffect *a = VSTPluginMain(host), *b = VSTPluginMain(host);
     CHECK(a && b && a != b, "two instances");
-    CHECK(a->npar == NPARAMS && NPARAMS == 105, "param count %d", a->npar);
+    CHECK(a->npar == NPARAMS && NPARAMS == 106, "param count %d", a->npar);
     char name[64];
     a->d(a, 8, P_GAIN, 0, name, 0);
     CHECK(!strcmp(name, "Gain"), "name of gain is '%s'", name);

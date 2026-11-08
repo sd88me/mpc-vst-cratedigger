@@ -108,6 +108,7 @@ enum {
     P_MUSIC_BTN,
     P_LEVEL_L,
     P_LEVEL_R,
+    P_PLAY_STATE,
     NPARAMS
 };
 static const param_t PARAMS[NPARAMS] = {
@@ -216,4 +217,5 @@ static const param_t PARAMS[NPARAMS] = {
     {"music_btn", "Music Only Button", T_TRIGGER, 0.0f, 1.0f, 0.0f},
     {"level_l", "Level L", T_LEVEL, 0.0f, 1.0f, 0.0f},
     {"level_r", "Level R", T_LEVEL, 0.0f, 1.0f, 0.0f},
+    {"play_state", "Play State", T_LEVEL, 0.0f, 1.0f, 0.0f},
 };

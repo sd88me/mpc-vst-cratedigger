@@ -458,7 +458,7 @@ static std::string display(Plugin *p, int i) {
         if (i == P_SYNC_STATE) return p->sync ? "SYNC ON" : "SYNC OFF";
         if (i == P_TIME) return core_get(p, "playback_time");
         if (i == P_SEARCH_STATUS) return search_text(p);
-        if (i == P_QUERY) return p->query.empty() ? std::string(p->kb ? "_" : "TAP KEYS TO TYPE") : upper(p->query) + (p->kb ? "_" : "");
+        if (i == P_QUERY) return p->query.empty() ? std::string(p->kb ? "_" : "TAP KEYBOARD TO TYPE") : upper(p->query) + (p->kb ? "_" : "");
         if (i == P_NOW_PLAYING) {
             int c = current_result(p);
             if (c < 0) return "";
@@ -815,9 +815,23 @@ private:
         case T_FLOAT: return e_.gain;
         case T_SLOT: return current_result(&e_) == e_.page * SLOTS + (i - P_RESULT_1) ? 1.0f : 0.0f;
         case T_TRIGGER: return is_sticky(i) && sticky_on(&e_, i) ? 1.0f : 0.0f;
-        case T_LEVEL: return lamps(i == P_LEVEL_L ? peakL_.load() : peakR_.load());
+        case T_LEVEL:
+            if (i == P_PLAY_STATE) return playState();
+            return lamps(i == P_LEVEL_L ? peakL_.load() : peakR_.load());
         default: return 0.0f;
         }
+    }
+
+    // for the PLAY and STOP lamps: 0 stopped, 1 streaming, 2 paused, 3 buffering or waiting for MPC's Play. Under lock.
+    float playState()
+    {
+        if (!e_.core) return 0.0f;
+        const std::string st = core_get(&e_, "stream_status");
+        if (e_.hold && !core_get(&e_, "stream_url").empty()) return 3.0f;
+        if (st == "streaming") return 1.0f;
+        if (st == "paused") return 2.0f;
+        if (st == "buffering" || st == "loading") return 3.0f;
+        return 0.0f;
     }
 
     // peak -> lit lamps 0..10 on a dB ladder (-48 .. 0)

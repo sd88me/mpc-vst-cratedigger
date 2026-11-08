@@ -536,6 +536,11 @@
    "key": "level_r",
    "name": "Level R",
    "type": "level"
+  },
+  {
+   "key": "play_state",
+   "name": "Play State",
+   "type": "level"
   }
  ]
 }

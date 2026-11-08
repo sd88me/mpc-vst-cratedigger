@@ -16,6 +16,11 @@ ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, "skins")
 LOCK = [l.strip() for l in open(os.path.join(ROOT, "vst", "params.lock")) if l.strip()]
 S = M.S
+TUI_PX = 0.66   # a Label of TUI height h draws text about 0.66 * h pixels tall (measured on the Live III)
+
+
+def th(px):
+    return float(round(px / TUI_PX))
 
 
 def P(key):
@@ -88,9 +93,10 @@ class Page:
         self.kids.append(entry(label or param, "cd_" + nm, {"version": 1, "handleName": "Data"}, "%d %d %d %d" % (cx - sw / 2, cy - PAD_TOP - h / 2, sw, sh),
                                remap=P(param), focus="Yes", ind=ind))
 
-    def lcd_text(self, key, x, y, w, size=16, h=26, just="left verticallyCentred", handle="Data"):
+    def lcd_text(self, key, x, y, w, size=16, h=None, just="left verticallyCentred", handle="Data", colour="ffecf0ff"):
+        h = h or int(size * 1.5)
         e = label("Value", "%d %d %d %d" % (x, y - h / 2, w, h), remap=[("Data", P(key)), ("Text", P(key))] if handle == "Text" else P(key),
-                  just=just, colour="ffecf0ff", style="SemiBold", case="Original", h=float(size) + 4)
+                  just=just, colour=colour, style="SemiBold", case="Original", h=th(size))
         if handle == "Text":
             e["componentData"]["data"]["handleName"] = "Text"
         self.kids.append(e)
@@ -163,6 +169,25 @@ def add_master(p):
                             "%d %d %d %d" % (LEV_X, y, LEV_W, LEV_H), remap=P(key)))
 
 
+def lamp_strip(name, frames_spec):
+    """An 11-frame Image strip for a 0..10 parameter: frames_spec[state] = (r, g, b) lit colour or None (dark); 40 x 16 per frame."""
+    strip = Image.new("RGBA", (40, 16 * 11), (0, 0, 0, 0))
+    for f in range(11):
+        sp = Sprite(40, 16)
+        col = frames_spec.get(f)
+        base = frames_spec["dark"]
+        if col:
+            M.glow(sp, 20, 8, 10, col, 190)
+        sp.d.rectangle([11 * S, 6.5 * S, 29 * S, 10 * S], fill=tuple(min(255, v + 30) for v in col) if col else tuple(v // 4 for v in base) + (200,))
+        strip.paste(sp.image(), (0, f * 16))
+    return save(strip, name)
+
+
+def add_lamp(p, key, name, spec, cx, y):
+    p.kids.append(entry(name, "Image", {"version": 2, "imageType": "FilmStrip", "colour": "0", "image": lamp_strip(name + ".png", spec), "numFrames": 11, "handleName": "Data"},
+                        "%d %d 40 16" % (cx - 20, y), remap=P(key)))
+
+
 # ---- knobs -------------------------------------------------------------------------------------------------------------------------------------
 KNOBS = {}
 
@@ -213,18 +238,19 @@ def lcd_frame(c, box):
 
 
 def lcd_header_static(c, x0, y0, x1):
-    M.lt(c, (x0, y0), "NOW", 12, dim=True)
-    M.lt(c, (x0, y0 + 22), "STATUS", 12, dim=True)
-    M.lt(c, (x1 - 150, y0 + 22), "TIME", 12, dim=True)
-    M.lt(c, (x0, y0 + 44), "SEARCH", 12, dim=True)
-    c.d.rectangle([x0 * S, (y0 + 58) * S, (x1 + 2) * S, (y0 + 60) * S], fill=M.LCD_DIM)
+    """The three readouts every tab shows on its LCD: NOW (big) over STATUS / TIME / SEARCH."""
+    M.lt(c, (x0, 116), "NOW", 13, dim=True)
+    M.lt(c, (x0, 156), "STATUS", 13, dim=True)
+    M.lt(c, (500, 156), "TIME", 13, dim=True)
+    M.lt(c, (660, 156), "SEARCH", 13, dim=True)
+    c.d.rectangle([x0 * S, 176 * S, (x1 + 2) * S, 178 * S], fill=M.LCD_DIM)
 
 
 def lcd_header_live(p, x0, y0, x1):
-    p.lcd_text("now_playing", x0 + 68, y0, x1 - x0 - 80, size=16)
-    p.lcd_text("status", x0 + 68, y0 + 22, 440, size=16)
-    p.lcd_text("time", x1 - 100, y0 + 22, 100, size=16)
-    p.lcd_text("search_status", x0 + 68, y0 + 44, x1 - x0 - 80, size=16)
+    p.lcd_text("now_playing", x0 + 66, 114, x1 - x0 - 70, size=30, h=44)
+    p.lcd_text("status", x0 + 74, 156, 380, size=22, h=32)
+    p.lcd_text("time", 500 + 56, 156, 100, size=22, h=32)
+    p.lcd_text("search_status", 660 + 84, 156, x1 - 660 - 84, size=22, h=32)
 
 
 def row_def(w, h):
@@ -238,7 +264,7 @@ def row_def(w, h):
         add_def(key, component([
             entry("Button", "Button", {"version": 1, "onImage": save(on.image(), "row_on.png"), "offImage": save(offs.image(), "row_off.png"),
                                        "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data"}, "0 0 %d %d" % (w, h)),
-            entry("Value", "Label", {"version": 1, "textStyle": text_style(h=20.0, colour="ffecf0ff", just="left verticallyCentred", case="Original"),
+            entry("Value", "Label", {"version": 1, "textStyle": text_style(h=th(19), colour="ffecf0ff", just="left verticallyCentred", case="Original"),
                                      "type": "Value", "handleName": "Data"}, "10 0 %d %d" % (w - 14, h)),
         ], actions=[act("Mouse Down", "Toggle Switch"), act("Enter Pressed", "Toggle Switch")]))
     return key
@@ -251,29 +277,33 @@ def build_play():
     M.lcd(c, (40, 82, 1240, 440))
     lcd_header_static(c, 66, 112, 1212)
     lcd_header_live(p, 66, 112, 1212)
-    w, h = 570, 54
+    w, h = 570, 56
     rk = row_def(w, h)
     for i in range(8):
         col, row = i // 4, i % 4
-        x0, y0 = 66 + col * 590, 198 + row * 58
-        p.kids.append(entry("result %d" % (i + 1), rk, {"version": 1, "handleName": "Data"}, "%d %d %d %d" % (x0 - 6, y0 - 14, w, h), remap=P("result_%d" % (i + 1)),
+        x0, y0 = 66 + col * 590, 190 + row * 61
+        p.kids.append(entry("result %d" % (i + 1), rk, {"version": 1, "handleName": "Data"}, "%d %d %d %d" % (x0 - 6, y0, w, h), remap=P("result_%d" % (i + 1)),
                             focus="Yes" if i == 0 else "No"))
-    M.brushed(c, (40, 456, 640, 614))
-    M.bracket(c, 60, 620, 474, "TRANSPORT")
-    for i, (param, lab, cap, size) in enumerate([("rewind_15", "◄◄", "BACK 15 S", 20), ("play_pause", "▶ ❚❚", "PLAY / PAUSE", 18), ("stop", "■", "STOP", 20), ("forward_15", "►►", "FORWARD 15 S", 20)]):
+    GREEN, AMBER, RED = (70, 230, 120), (255, 176, 40), (255, 60, 40)
+    M.brushed(c, (40, 456, 780, 614))
+    M.bracket(c, 60, 760, 474, "TRANSPORT")
+    keys = [("rewind_15", "◄◄", "BACK 15 S", 20, False), ("play_pause", "▶ ❚❚", "PLAY / PAUSE", 18, False), ("stop", "■", "STOP", 20, False),
+            ("forward_15", "►►", "FORWARD 15 S", 20, False), ("transport_sync", "SYNC", "WAIT FOR MPC PLAY", 14, True)]
+    for i, (param, lab, cap, size, tog) in enumerate(keys):
         cx = 120 + i * 140
-        p.key(param, lab, "cream", cx, 540, 110, 62, size=size, lamp=None)
+        p.key(param, lab, "cream", cx, 540, 110, 62, size=size, lamp="amber" if tog else None, toggle=tog)
         c.t((cx, 584), cap, 9, M.INK)
-    M.brushed(c, (656, 456, 1240, 614))
-    M.bracket(c, 676, 1220, 474, "RESULTS  /  SEARCH")
-    p.key("page_prev", "◄ PAGE", "cream", 730, 540, 108, 62, size=14)
-    p.key("page_next", "PAGE ►", "cream", 865, 540, 108, 62, size=14)
-    p.key("transport_sync", "SYNC", "cream", 1000, 540, 108, 62, size=14, lamp="amber", toggle=True)
-    p.key("search", "SEARCH", "dark", 1135, 540, 108, 62, size=14)
-    c.t((1000, 584), "WAIT FOR MPC PLAY", 8, M.INK)
+    # status lamps from play_state: PLAY green while streaming, amber while paused / buffering; STOP red while stopped
+    add_lamp(p, "play_state", "lamp_play", {"dark": GREEN, 1: GREEN, 2: AMBER, 3: AMBER}, 260, 497)
+    add_lamp(p, "play_state", "lamp_stop", {"dark": RED, 0: RED}, 400, 497)
+    M.brushed(c, (796, 456, 1240, 614))
+    M.bracket(c, 816, 1220, 474, "RESULTS  /  SEARCH")
+    p.key("page_prev", "◄ PAGE", "cream", 880, 540, 108, 62, size=14)
+    p.key("page_next", "PAGE ►", "cream", 1000, 540, 108, 62, size=14)
+    p.key("search", "SEARCH", "dark", 1130, 540, 108, 62, size=14)
     add_master(p)
-    p.qgroup((40, 456, 640, 614), ["rewind_15", "play_pause", "stop", "forward_15"])
-    p.qgroup((656, 456, 1240, 614), ["transport_sync", "search", "page", "gain"])
+    p.qgroup((40, 456, 780, 614), ["rewind_15", "play_pause", "stop", "forward_15"])
+    p.qgroup((796, 456, 1240, 614), ["transport_sync", "search", "page", "gain"])
     return p, c
 
 
@@ -289,20 +319,20 @@ def build_filters():
     lcd_header_live(p, 66, 112, 1212)
     for i, (key, cap) in enumerate(FILTERS):
         col, row = i // 3, i % 3
-        x0, y0 = 66 + col * 590, 198 + row * 62
-        M.lt(c, (x0, y0 + 4), "%02d" % (i + 1), 20)
-        M.lt(c, (x0 + 52, y0 + 32), cap, 12, dim=True)
-        p.lcd_text(key, x0 + 46, y0 + 4, 520, size=26, h=40, handle="Text")
-    M.lt(c, (66 + 590 + 52, 198 + 2 * 62 + 4), "STYLE FOLLOWS GENRE", 13, dim=True)
-    M.lt(c, (66 + 590 + 52, 198 + 2 * 62 + 30), "COUNTRY FOLLOWS REGION", 13, dim=True)
+        x0, y0 = 66 + col * 590, 186 + row * 66
+        M.lt(c, (x0, y0 + 16), "%02d" % (i + 1), 22)
+        M.lt(c, (x0 + 56, y0 + 52), cap, 13, dim=True)
+        p.lcd_text(key, x0 + 52, y0 + 20, 520, size=34, h=48, handle="Text")
+    M.lt(c, (66 + 590 + 56, 186 + 2 * 66 + 12), "STYLE FOLLOWS GENRE", 15, dim=True)
+    M.lt(c, (66 + 590 + 56, 186 + 2 * 66 + 40), "COUNTRY FOLLOWS REGION", 15, dim=True)
     M.plate(c, (40, 414, 1240, 614), "DISCOGS FILTERS")
     for i, (key, cap) in enumerate(FILTERS):
         cx = 142 + i * 188
-        M.knob(c, cx, 502, 36, 0.0, None, big=True, numbers=False, only_ruler=True)
-        c.t((cx, 558), cap, 10, M.INK, "mm", "b")
-        add_knob(p, key, cx, 502, 36)
-        arrow(p, key + "_prev", "◄", cx - 70, 502)
-        arrow(p, key + "_next", "►", cx + 70, 502)
+        M.knob(c, cx, 510, 34, 0.0, None, big=True, numbers=False, only_ruler=True)
+        c.t((cx, 450), cap, 11, M.INK, "mm", "b")
+        add_knob(p, key, cx, 510, 34)
+        arrow(p, key + "_prev", "◄", cx - 42, 580)
+        arrow(p, key + "_next", "►", cx + 42, 580)
     p.key("search", "SEARCH", "dark", 1110, 520, 190, 62, size=16)
     c.t((1110, 566), "SEARCH DISCOGS", 9, M.INK)
     add_master(p)
@@ -323,60 +353,71 @@ def selector(c, p, cx, cy, key, name, gap, r=22):
 def build_find():
     c = base_canvas("FIND")
     p = Page("FIND", 2)
-    M.lcd(c, (40, 82, 1240, 340))
+    M.lcd(c, (40, 82, 1240, 345))
     lcd_header_static(c, 66, 112, 1212)
     lcd_header_live(p, 66, 112, 1212)
-    M.lt(c, (70, 198), "SOURCE", 13, dim=True)
-    p.lcd_text("source", 170, 198, 300, size=15, handle="Text")
-    M.lt(c, (520, 198), "CHANNEL", 13, dim=True)
-    p.lcd_text("channel", 620, 198, 560, size=15, handle="Text")
-    M.lt(c, (70, 224), "LENGTH", 13, dim=True)
-    p.lcd_text("min_len", 170, 224, 90, size=15, handle="Text")
-    M.lt(c, (268, 224), "-", 15)
-    p.lcd_text("max_len", 290, 224, 90, size=15, handle="Text")
-    M.lt(c, (520, 224), "MUSIC ONLY", 13, dim=True)
-    p.lcd_text("music", 660, 224, 120, size=15, handle="Text")
-    M.lt(c, (70, 276), "TEXT", 13, dim=True)
-    p.lcd_text("query", 170, 277, 1030, size=18)
-    M.brushed(c, (40, 354, 300, 540))
-    M.bracket(c, 56, 284, 370, "DISCOGS")
-    p.key("source_discogs", "DISCOGS", "blue", 170, 416, 160, 56, size=15, toggle=True, lamp="red")
-    c.t((170, 472), "USES THE FILTERS TAB", 8, M.INK)
-    M.brushed(c, (316, 354, 760, 540))
-    M.bracket(c, 332, 744, 370, "CHANNEL")
-    p.key("source_channel", "CHANNEL", "blue", 538, 416, 160, 56, size=15, toggle=True, lamp="red")
-    selector(c, p, 538, 494, "channel", "CHANNEL  (CHANNELS.TXT)", 76)
-    M.brushed(c, (776, 354, 1240, 540))
-    M.bracket(c, 792, 1224, 370, "YOUTUBE")
-    p.key("source_youtube", "YOUTUBE", "blue", 880, 416, 140, 56, size=15, toggle=True, lamp="red")
-    p.key("music_btn", "MUSIC ONLY", "cream", 1060, 416, 140, 56, size=13, toggle=True, lamp="red")
-    selector(c, p, 870, 494, "min_len", "MIN LENGTH", 52)
-    selector(c, p, 1070, 494, "max_len", "MAX LENGTH", 52)
-    M.brushed(c, (40, 550, 1240, 616))
-    M.bracket(c, 56, 1224, 566, "SEARCH")
-    p.key("keys", "KEYBOARD", "dark", 150, 596, 160, 38, size=13)
-    p.key("find_search", "SEARCH", "dark", 340, 596, 160, 38, size=14)
+    # the LCD in three columns, each directly above the panel of the same name; the active source's column title is lit
+    cols = [(66, 308, "DISCOGS"), (340, 768, "CHANNEL"), (800, 1212, "YOUTUBE")]
+    for i, (x0, x1, title) in enumerate(cols):
+        M.lt(c, (x0 + 6, 196), title, 15)
+        c.d.line([((x0 - 14) * S, 186 * S), ((x0 - 14) * S, 292 * S)], fill=M.LCD_DIM + (120,), width=S) if i else None
+        lit = Image.new("RGBA", (x1 - x0, 26), (0, 0, 0, 0))
+        ImageDraw.Draw(lit).rounded_rectangle((0, 0, x1 - x0 - 1, 25), 3, fill=(120, 160, 255, 110))
+        p.kids.append(entry("source %d" % i, "Image", {"version": 2, "imageType": "Regular", "colour": "0", "image": save(lit, "srclit_%d.png" % i)},
+                            "%d 184 %d 26" % (x0, x1 - x0), ind=["IndexedEnabling/%d/3/%s" % (i, P("source"))]))
+    for j, (key, cap) in enumerate([("genre", "GENRE"), ("style", "STYLE"), ("decade", "DECADE"), ("country", "COUNTRY")]):
+        M.lt(c, (72, 224 + j * 20), cap, 11, dim=True)
+        p.lcd_text(key, 150, 224 + j * 20, 150, size=15, h=22, handle="Text")
+    M.lt(c, (346, 224), "NAME", 11, dim=True)
+    p.lcd_text("channel", 400, 226, 360, size=20, h=28, handle="Text")
+    M.lt(c, (806, 224), "LENGTH", 11, dim=True)
+    p.lcd_text("min_len", 880, 226, 100, size=20, h=28, handle="Text")
+    M.lt(c, (984, 226), "-", 20)
+    p.lcd_text("max_len", 1000, 226, 100, size=20, h=28, handle="Text")
+    M.lt(c, (806, 258), "MUSIC ONLY", 11, dim=True)
+    p.lcd_text("music", 910, 260, 150, size=20, h=28, handle="Text")
+    c.d.rectangle([66 * S, 298 * S, 1214 * S, 299 * S], fill=M.LCD_DIM)
+    M.lt(c, (72, 322), "TEXT", 12, dim=True)
+    p.lcd_text("query", 130, 322, 1080, size=24, h=34)
+    M.brushed(c, (40, 356, 300, 530))
+    M.bracket(c, 56, 284, 372, "DISCOGS")
+    p.key("source_discogs", "DISCOGS", "blue", 170, 424, 160, 56, size=15, toggle=True, lamp="red")
+    c.t((170, 478), "USES THE FILTERS TAB", 8, M.INK)
+    M.brushed(c, (316, 356, 760, 530))
+    M.bracket(c, 332, 744, 372, "CHANNEL")
+    p.key("source_channel", "CHANNEL", "blue", 538, 424, 160, 56, size=15, toggle=True, lamp="red")
+    selector(c, p, 538, 482, "channel", "CHANNEL  (CHANNELS.TXT)", 76)
+    M.brushed(c, (776, 356, 1240, 530))
+    M.bracket(c, 792, 1224, 372, "YOUTUBE")
+    p.key("source_youtube", "YOUTUBE", "blue", 880, 424, 140, 56, size=15, toggle=True, lamp="red")
+    p.key("music_btn", "MUSIC ONLY", "cream", 1060, 424, 140, 56, size=13, toggle=True, lamp="red")
+    selector(c, p, 870, 482, "min_len", "MIN LENGTH", 52)
+    selector(c, p, 1070, 482, "max_len", "MAX LENGTH", 52)
+    M.brushed(c, (40, 540, 1240, 616))
+    M.bracket(c, 56, 1224, 556, "SEARCH")
+    p.key("keys", "KEYBOARD", "dark", 150, 590, 160, 40, size=13)
+    p.key("find_search", "SEARCH", "dark", 1110, 590, 200, 40, size=15)
     add_master(p)
-    p.qgroup((316, 354, 1240, 540), ["source", "channel", "min_len", "max_len"])
-    p.qgroup((40, 550, 1240, 616), ["music", "keys", "find_search", "gain"])
+    p.qgroup((316, 356, 1240, 530), ["source", "channel", "min_len", "max_len"])
+    p.qgroup((40, 540, 1240, 616), ["music", "keys", "find_search", "gain"])
     # the popup keyboard, shown while `kb` is on: a plate that swallows touches, and the keys over it
     ind = ["IndexedEnabling/1/2/%s" % P("kb")]
-    plate_img = Sprite(1280, 282)
-    plate_img.d.rectangle([0, 0, 1280 * S, 282 * S], fill=M.SILK)
+    plate_img = Sprite(1280, 276)
+    plate_img.d.rectangle([0, 0, 1280 * S, 276 * S], fill=M.SILK)
     plate_img.line([(0, 0), (1280, 0)], (60, 60, 58), 2)
     plate_img.t((44, 16), "KEYBOARD", 10, M.INK, "lm", "b")
     plate_img.line([(130, 16), (1236, 16)], (120, 120, 116), 1)
     pimg = save(plate_img.image(), "kb_plate.png")
-    add_def("cd_kbplate", component([entry("Button", "Button", {"version": 1, "onImage": pimg, "offImage": pimg, "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data"}, "0 0 1280 282")],
+    add_def("cd_kbplate", component([entry("Button", "Button", {"version": 1, "onImage": pimg, "offImage": pimg, "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data"}, "0 0 1280 276")],
                                     actions=[act("Mouse Down", "Q-Link")]))
-    p.kids.append(entry("noop", "cd_kbplate", {"version": 1, "handleName": "Data"}, "0 346 1280 282", remap=P("noop"), focus="Yes", ind=ind))
+    p.kids.append(entry("noop", "cd_kbplate", {"version": 1, "handleName": "Data"}, "0 352 1280 276", remap=P("noop"), focus="Yes", ind=ind))
     rows = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"]
     for ri, row in enumerate(rows):
         x0 = 118 + [0, 0, 58, 174][ri]
         for k, ch in enumerate(row):
-            p.key("k_" + ch, ch, "blue" if ri == 0 else "cream", x0 + k * 116, 378 + ri * 52 + 22, 100, 42, size=18, ind=ind, nm="kb_" + ch)
-    for param, lab, cx, cy, w, col in [("k_hide", "HIDE", 130, 592, 200, "dark"), ("k_space", "SPACE", 520, 592, 520, "cream"), ("k_clear", "CLEAR", 880, 592, 190, "dark"),
-                                       ("k_send", "SEARCH", 1130, 592, 220, "dark"), ("k_back", "BACK", 1180, 547, 150, "dark")]:
+            p.key("k_" + ch, ch, "blue" if ri == 0 else "cream", x0 + k * 116, 382 + ri * 52 + 22, 100, 42, size=18, ind=ind, nm="kb_" + ch)
+    for param, lab, cx, cy, w, col in [("k_hide", "HIDE", 130, 594, 200, "dark"), ("k_space", "SPACE", 520, 594, 520, "cream"), ("k_clear", "CLEAR", 880, 594, 190, "dark"),
+                                       ("k_send", "SEARCH", 1130, 594, 220, "dark"), ("k_back", "BACK", 1180, 551, 150, "dark")]:
         p.key(param, lab, col, cx, cy, w, 40, size=14, ind=ind, nm="kb_" + param)
     return p, c
 
@@ -432,7 +473,7 @@ def preview(pages, tabs):
                 rp = e["handle remapping"]["map"][0]["value"] if e["handle remapping"]["map"] else None
                 key = LOCK[int(rp.split()[1])] if rp else ""
                 txt = SAMPLE.get(key, ROWS[int(key.split("_")[1]) - 1] if key.startswith("result_") else key)
-                d.text((x + 4, y + h / 2), txt, font=M.ImageFont.truetype(M.MONO, int(float(cd["data"]["textStyle"]["font"]["height"]) * 0.8)), fill=(236, 240, 255), anchor="lm")
+                d.text((x + 2, y + h / 2), txt, font=M.ImageFont.truetype(M.TIT, int(float(cd["data"]["textStyle"]["font"]["height"]) * TUI_PX)), fill=(236, 240, 255), anchor="lm")
             elif cd["type"] in defs:
                 comp = defs[cd["type"]]
                 for sub in comp["componentsData"]:
@@ -451,7 +492,7 @@ def preview(pages, tabs):
                         k = 30 if "gain" in sd["data"]["filmStrip"] else 20
                         im.alpha_composite(st.crop((0, fh * k, st.width, fh * (k + 1))), (int(x + sx), int(y + sy)))
                     elif sd["type"] == "Label":
-                        d.text((x + sx + 6, y + sy + sh / 2), ROWS[1] if "row" in cd["type"] else "", font=M.ImageFont.truetype(M.MONO, 16), fill=(236, 240, 255), anchor="lm")
+                        d.text((x + sx + 10, y + sy + sh / 2), ROWS[int(cd["name"].split()[-1]) - 1] if "row" in cd["type"] else "", font=M.ImageFont.truetype(M.TIT, int(float(sd["data"]["textStyle"]["font"]["height"]) * TUI_PX)), fill=(236, 240, 255), anchor="lm")
         os.makedirs(os.path.join(ROOT, "build", "preview"), exist_ok=True)
         im.convert("RGB").save(os.path.join(ROOT, "build", "preview", "%s.png" % p.name.lower()))
 

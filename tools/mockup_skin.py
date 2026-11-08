@@ -12,6 +12,9 @@ SANSB = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 SERIFB = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 MONO = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
+# the MPC draws live text in Titillium Web, so the art and the previews use it too (the family is on the OFL; only rendered here, not shipped)
+TIT = next((f for f in (os.path.expanduser("~/mpc-vst-dx7/fonts/TitilliumWeb-SemiBold.ttf"), os.path.expanduser("~/mpc-vst-plugins-v1/tools/html_art/fonts/TitilliumWeb-SemiBold.ttf"), MONO) if os.path.exists(f)))
+TITB = next((f for f in (os.path.expanduser("~/mpc-vst-airwin2rack/tools/art/fonts/TitilliumWeb-Bold.ttf"), os.path.expanduser("~/mpc-vst-plugins-v1/tools/html_art/fonts/TitilliumWeb-Bold.ttf"), SANSB) if os.path.exists(f)))
 S = 2
 W, H = 1280, 628
 PLATE, EAR, EDGE = (214, 214, 208), (196, 196, 190), (150, 150, 146)           # off-white faceplate, rack ears
@@ -21,7 +24,7 @@ KEYC, KEYD, INK, RED, BLACK = (238, 238, 232), (100, 104, 112), (30, 30, 32), (1
 
 
 def font(size, kind="s"):
-    return ImageFont.truetype({"s": SANS, "b": SANSB, "k": SERIFB, "m": MONO}[kind], int(size * S))
+    return ImageFont.truetype({"s": SANS, "b": SANSB, "k": SERIFB, "m": MONO, "t": TIT, "tb": TITB}[kind], int(size * S))
 
 
 class C:
@@ -45,7 +48,7 @@ class C:
         self.d.rounded_rectangle([c * S for c in box], radius=rad * S, fill=fill, outline=outline, width=int(width * S))
 
     def t(self, xy, text, size=12, fill=INK, anchor="mm", kind="s"):
-        if any(ord(ch) > 127 for ch in text) and kind != "m": kind = "b"
+        if any(ord(ch) > 127 for ch in text) and kind not in ("m", "t", "tb"): kind = "b"
         self.d.text((xy[0] * S, xy[1] * S), text, font=font(size, kind), fill=fill, anchor=anchor)
 
     def ell(self, cx, cy, rx, ry, fill=None, outline=None, width=1):
@@ -117,8 +120,8 @@ def lcd(c, box):
 def lt(c, xy, text, size=15, inv=False, dim=False, anchor="lm"):
     """LCD text: a faint dark shadow one dot down-right, like lit pixels on a dot-matrix panel."""
     if not inv:
-        c.t((xy[0] + 1, xy[1] + 1), text, size, (6, 14, 70), anchor, "m")
-    c.t(xy, text, size, LCD_BG2 if inv else (LCD_DIM if dim else LCD_FG), anchor, "m")
+        c.t((xy[0] + 1, xy[1] + 1), text, size, (6, 14, 70), anchor, "t")
+    c.t(xy, text, size, LCD_BG2 if inv else (LCD_DIM if dim else LCD_FG), anchor, "t")
 
 
 def invbar(c, x0, y0, x1, y1):
@@ -192,14 +195,13 @@ def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), bod
         return
     c.shadow((cx - r, cy - r, cx + r, cy + r), r, 7, 7, 160)
     if big:
-        c.ell(cx, cy, r, r, fill=(104, 114, 134), outline=(46, 52, 66), width=2)
-        for i in range(60):   # knurling
-            a = math.radians(i * 6)
-            c.line([(cx + math.cos(a) * (r - 4), cy + math.sin(a) * (r - 4)), (cx + math.cos(a) * (r - 1), cy + math.sin(a) * (r - 1))], (70, 78, 96), 1)
-        c.ell(cx, cy, r - 5, r - 5, fill=(150, 160, 178))
-        for k in range(1, 6):   # machined concentric rings
-            c.ell(cx, cy, (r - 6) * k / 6, (r - 6) * k / 6, outline=(255, 255, 255, 36) if k % 2 else (0, 0, 0, 24), width=1)
-        c.ell(cx - r * 0.18, cy - r * 0.25, r * 0.45, r * 0.3, fill=(255, 255, 255, 40))
+        c.ell(cx, cy, r, r, fill=(66, 70, 80), outline=(34, 36, 42), width=2)
+        for i in range(64):   # knurled skirt
+            a = math.radians(i * 5.625)
+            c.line([(cx + math.cos(a) * (r - 4), cy + math.sin(a) * (r - 4)), (cx + math.cos(a) * (r - 1), cy + math.sin(a) * (r - 1))], (110, 114, 126), 1)
+        cap = r - 7
+        vgrad(c, (cx - cap, cy - cap, cx + cap, cy + cap), (186, 194, 208), (146, 154, 170), int(cap))   # a flat cap, lit from the top
+        c.ell(cx, cy, cap, cap, outline=(70, 76, 90), width=1)
     else:
         c.ell(cx, cy, r, r, fill=BLACK, outline=(0, 0, 0), width=2)
         for i in range(44):
@@ -209,7 +211,7 @@ def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), bod
         c.ell(cx - 1, cy - 2, r - 14, r - 14, fill=(60, 60, 64))
         c.ell(cx - r * 0.2, cy - r * 0.3, r * 0.4, r * 0.25, fill=(255, 255, 255, 34))
     a = math.radians(135 + value * 270)
-    c.line([(cx + math.cos(a) * (r * 0.22), cy + math.sin(a) * (r * 0.22)), (cx + math.cos(a) * (r - 7), cy + math.sin(a) * (r - 7))], pointer if not big else (24, 28, 40), 4)
+    c.line([(cx + math.cos(a) * (r * 0.30), cy + math.sin(a) * (r * 0.30)), (cx + math.cos(a) * (r - 6), cy + math.sin(a) * (r - 6))], pointer if not big else (28, 32, 44), 4)
     if name:
         c.t((cx, cy - r - 32), name, 10, INK)
 
