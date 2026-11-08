@@ -128,35 +128,37 @@ def invbar(c, x0, y0, x1, y1):
 SILK = (198, 198, 192)   # a slightly darker grey than the faceplate: a printed (silk-screened) section, flat
 
 
+SILK = (197, 197, 191)   # a slightly darker grey than the faceplate: a printed (silk-screened) section, flat, no outline
+
+
 def plate(c, box, title=None, color=None):
-    """A silk-screened section of the faceplate: flat grey, a thin printed outline, the title printed in the top-left with a rule."""
+    """A silk-screened section of the faceplate: flat grey, the title printed top-left with a thin rule."""
     x0, y0, x1, y1 = box
-    c.r(box, 3, fill=SILK, outline=(70, 70, 68), width=1)
+    c.r(box, 4, fill=SILK)
     if title:
         c.t((x0 + 14, y0 + 15), title, 10, INK, "lm", "b")
-        c.line([(x0 + 24 + len(title) * 7.4, y0 + 15), (x1 - 14, y0 + 15)], (70, 70, 68), 1)
+        c.line([(x0 + 24 + len(title) * 7.4, y0 + 15), (x1 - 14, y0 + 15)], (120, 120, 116), 1)
 
 
 def brushed(c, box):
-    """A silk-screened key section (flat grey, printed outline); the title is printed by bracket()."""
-    c.r(box, 3, fill=SILK, outline=(70, 70, 68), width=1)
+    """A silk-screened key section: flat grey, no outline; the title is printed by bracket()."""
+    c.r(box, 4, fill=SILK)
 
 
 def bracket(c, x0, x1, y, text):
     """A printed section title: left-aligned small caps and a rule to the right edge."""
     c.t((x0, y), text, 10, INK, "lm", "b")
-    c.line([(x0 + 10 + len(text) * 7.6, y), (x1, y)], (70, 70, 68), 1)
+    c.line([(x0 + 10 + len(text) * 7.6, y), (x1, y)], (120, 120, 116), 1)
 
 
-KEYCOL = {"cream": ((250, 250, 245), (214, 214, 206), (88, 88, 82), INK), "dark": ((126, 130, 138), (84, 88, 96), (50, 52, 58), (245, 245, 240)),
-          "green": ((92, 214, 120), (34, 150, 70), (14, 80, 34), (8, 40, 16)), "red": ((214, 62, 48), (150, 24, 20), (72, 12, 10), (255, 244, 240)),
-          "amber": ((255, 214, 96), (232, 160, 30), (120, 78, 8), (50, 30, 0)), "blue": ((120, 170, 240), (58, 106, 190), (26, 54, 110), (255, 255, 255)),
-          "white": ((255, 255, 255), (226, 226, 222), (96, 96, 92), INK)}
+KEYCOL = {"cream": ((250, 250, 245), (214, 214, 206), (88, 88, 82), INK), "dark": ((124, 128, 136), (82, 86, 94), (46, 48, 54), (245, 245, 240)),
+          "blue": ((196, 218, 242), (150, 182, 218), (70, 96, 130), (24, 36, 56))}
+LAMP = {"green": (70, 230, 120), "red": (255, 60, 40), "amber": (255, 176, 40)}
 
 
-def key(c, cx, cy, w, h, label=None, color="cream", lit=False, size=13, sub=None):
-    """A square plastic key labelled by what it does: gradient cap, bevel, finger dish, a small lamp above when lit (with a halo).
-    color tells the key's job at a glance: green PLAY, red SEARCH, amber SYNC, blue SOURCE, cream the rest."""
+def key(c, cx, cy, w, h, label=None, color="cream", lit=False, size=13, sub=None, lamp="red"):
+    """A square plastic key in the period colours (cream, dark grey, pale blue) labelled by what it does, with the small indicator lamp above
+    it (red, green or amber; glowing when lit), as on the sampler's function keys."""
     top, bot, edge, ink = KEYCOL[color]
     box = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
     c.shadow(box, 3, 3, 3, 140)
@@ -165,24 +167,25 @@ def key(c, cx, cy, w, h, label=None, color="cream", lit=False, size=13, sub=None
     c.r((cx - w / 2 + 3, cy - h / 2 + 3, cx + w / 2 - 3, cy + h / 2 - 3), 2, outline=(255, 255, 255, 120), width=1)
     c.r((cx - w / 2 + 6, cy - h / 2 + 6, cx + w / 2 - 6, cy + h / 2 - 6), 2, outline=(0, 0, 0, 30), width=1)
     ly = cy - h / 2 - 4
+    col = LAMP[lamp]
     if lit:
-        glow(c, cx, ly, 10, (255, 60, 40), 190)
-        c.d.rectangle([(cx - 9) * S, (ly - 1.5) * S, (cx + 9) * S, (ly + 2) * S], fill=(255, 96, 70))
+        glow(c, cx, ly, 10, col, 190)
+        c.d.rectangle([(cx - 9) * S, (ly - 1.5) * S, (cx + 9) * S, (ly + 2) * S], fill=tuple(min(255, v + 30) for v in col))
     else:
-        c.d.rectangle([(cx - 9) * S, (ly - 1.5) * S, (cx + 9) * S, (ly + 2) * S], fill=(70, 70, 72, 140))
+        c.d.rectangle([(cx - 9) * S, (ly - 1.5) * S, (cx + 9) * S, (ly + 2) * S], fill=tuple(v // 4 for v in col) + (200,))
     if label:
         c.t((cx, cy - (7 if sub else 0) + 1), label, size, ink, "mm", "b")
     if sub:
         c.t((cx, cy + 12), sub, 8, ink, "mm")
 
 
-def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), body=(36, 36, 40)):
+def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), body=(36, 36, 40), numbers=True):
     """Knurled knob: big = the grey-blue CURSOR/DATA style with machined rings, otherwise black with a white pointer. A printed dot ruler
     with 0 / 5 / 10 around it, a soft specular highlight, a drop shadow."""
     for i in range(11):
         a = math.radians(135 + i * 27)
         c.ell(cx + math.cos(a) * (r + 10), cy + math.sin(a) * (r + 10), 1.7, 1.7, fill=INK)
-        if i in (0, 5, 10):
+        if numbers and i in (0, 5, 10):
             c.t((cx + math.cos(a) * (r + 21), cy + math.sin(a) * (r + 21)), str(i), 8, INK)
     c.shadow((cx - r, cy - r, cx + r, cy + r), r, 7, 7, 160)
     if big:
@@ -280,14 +283,14 @@ def play():
     # two separate groups: TRANSPORT, and the results / search controls
     brushed(c, (40, 456, 540, 614))
     bracket(c, 60, 520, 474, "TRANSPORT")
-    for i, (lab, col) in enumerate([("◄◄", "cream"), ("▶ ❚❚", "green"), ("■", "white"), ("►►", "cream")]):
-        key(c, 110 + i * 118, 540, 98, 62, lab, col, size=20 if i != 1 else 18)
+    for i, (lab, lamp, lit) in enumerate([("◄◄", "red", False), ("▶ ❚❚", "green", True), ("■", "red", False), ("►►", "red", False)]):
+        key(c, 110 + i * 118, 540, 98, 62, lab, "cream", lit=lit, lamp=lamp, size=20 if i != 1 else 18)
     for i, t in enumerate(["BACK 15 S", "PLAY / PAUSE", "STOP", "FORWARD 15 S"]):
         c.t((110 + i * 118, 584), t, 9, INK)
     brushed(c, (556, 456, 988, 614))
     bracket(c, 576, 968, 474, "RESULTS  /  SEARCH")
-    for i, (lab, col, lit) in enumerate([("◄ PAGE", "cream", False), ("PAGE ►", "cream", False), ("SYNC", "amber", True), ("SEARCH", "red", False)]):
-        key(c, 612 + i * 100, 540, 86, 62, lab, col, lit=lit, size=13)
+    for i, (lab, col, lit, lamp) in enumerate([("◄ PAGE", "cream", False, "red"), ("PAGE ►", "cream", False, "red"), ("SYNC", "cream", True, "amber"), ("SEARCH", "dark", False, "red")]):
+        key(c, 612 + i * 100, 540, 86, 62, lab, col, lit=lit, lamp=lamp, size=13)
     c.t((612 + 2 * 100, 584), "WAIT FOR MPC PLAY", 8, INK)
     volume_panel(c, 0.5)
     c.save("play.png")
@@ -317,9 +320,17 @@ def filters():
         key(c, cx + 30, 556, 44, 28, "►", size=12)
     def right():
         bracket(c, 1024, 1230, 356, "DISCOGS")
-        key(c, 1127, 420, 190, 62, "SEARCH", "red", size=16)
+        key(c, 1127, 420, 190, 62, "SEARCH", "dark", size=16)
     volume_panel(c, 0.5, extra=right)
     c.save("filters.png")
+
+
+def selector(c, cx, cy, name, value=0.0, r=22, gap=56):
+    """A small selector: knob with its name under it and a ◄ ► key either side."""
+    knob(c, cx, cy, r, value, None, big=True, numbers=False)
+    key(c, cx - gap, cy, 36, 26, "◄", "cream", size=11)
+    key(c, cx + gap, cy, 36, 26, "►", "cream", size=11)
+    c.t((cx, cy + r + 20), name, 9, INK)
 
 
 def find(keys=False):
@@ -335,34 +346,37 @@ def find(keys=False):
     lt(c, (70, 270), "TEXT", 13, dim=True)
     invbar(c, 160, 254, 960, 288) if keys else None
     lt(c, (170, 271), "AMEN BREAK_" if keys else "TAP KEYS TO TYPE", 18, inv=keys, dim=not keys)
-    # two groups: where to search, and the search itself
-    brushed(c, (40, 350, 560, 470))
-    bracket(c, 60, 540, 366, "SOURCE")
-    for i, (n, lit) in enumerate([("DISCOGS", False), ("CHANNEL", False), ("YOUTUBE", True)]):
-        key(c, 112 + i * 160, 424, 138, 54, n, "blue", lit=lit, size=14)
-    brushed(c, (576, 350, 988, 470))
-    bracket(c, 596, 968, 366, "SEARCH")
-    for i, (n, col) in enumerate([("MUSIC ONLY", "cream"), ("KEYBOARD", "dark"), ("SEARCH", "red")]):
-        key(c, 650 + i * 130, 424, 116, 54, n, col, size=12 if i < 2 else 14)
-    plate(c, (40, 484, 988, 614), None)
-    for i, (k, v) in enumerate([("CHANNEL", .0), ("MIN LENGTH", .0), ("MAX LENGTH", .0)]):
-        cx = 190 + i * 300
-        knob(c, cx, 560, 26, v, k, big=True)
-        key(c, cx - 70, 560, 40, 26, "◄", size=11)
-        key(c, cx + 70, 560, 40, 26, "►", size=11)
+    # each source with its own controls
+    brushed(c, (40, 348, 258, 536))
+    bracket(c, 56, 242, 364, "DISCOGS")
+    key(c, 149, 410, 150, 56, "DISCOGS", "blue", size=15)
+    c.t((149, 466), "USES THE FILTERS TAB", 8, INK)
+    brushed(c, (272, 348, 626, 536))
+    bracket(c, 288, 610, 364, "CHANNEL")
+    key(c, 449, 410, 150, 56, "CHANNEL", "blue", size=15)
+    selector(c, 449, 492, "CHANNEL  (CHANNELS.TXT)", gap=66)
+    brushed(c, (640, 348, 988, 536))
+    bracket(c, 656, 972, 364, "YOUTUBE")
+    key(c, 730, 410, 130, 56, "YOUTUBE", "blue", lit=True, size=15)
+    key(c, 890, 410, 130, 56, "MUSIC ONLY", "cream", size=13)
+    selector(c, 718, 492, "MIN LENGTH", gap=46)
+    selector(c, 892, 492, "MAX LENGTH", gap=46)
+    brushed(c, (40, 546, 988, 614))
+    bracket(c, 56, 972, 562, "SEARCH")
+    key(c, 140, 592, 150, 40, "KEYBOARD", "dark", size=13)
+    key(c, 316, 592, 150, 40, "SEARCH", "dark", size=14)
     volume_panel(c, 0.5)
     if keys:
         c.shadow((0, 340, W, H), 0, 8, -3, 170)
         c.d.rectangle([0, 340 * S, W * S, H * S], fill=SILK)
-        c.line([(0, 340), (W, 340)], (70, 70, 68), 2)
         c.t((44, 356), "KEYBOARD", 10, INK, "lm", "b")
-        c.line([(130, 356), (1236, 356)], (70, 70, 68), 1)
+        c.line([(130, 356), (1236, 356)], (120, 120, 116), 1)
         rows = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"]
         for ri, row in enumerate(rows):
             x0 = 118 + [0, 0, 58, 174][ri]
             for k, ch in enumerate(row):
-                key(c, x0 + k * 116, 372 + ri * 52 + 22, 100, 42, ch, "cream", size=18)
-        for (cx, cy, w, txt, col) in [(130, 590, 200, "HIDE", "dark"), (520, 590, 520, "SPACE", "cream"), (880, 590, 190, "CLEAR", "dark"), (1130, 590, 220, "SEARCH", "red"), (1180, 541, 150, "BACK", "dark")]:
+                key(c, x0 + k * 116, 372 + ri * 52 + 22, 100, 42, ch, "blue" if ri == 0 else "cream", size=18)
+        for (cx, cy, w, txt, col) in [(130, 590, 200, "HIDE", "dark"), (520, 590, 520, "SPACE", "cream"), (880, 590, 190, "CLEAR", "dark"), (1130, 590, 220, "SEARCH", "dark"), (1180, 541, 150, "BACK", "dark")]:
             key(c, cx, cy, w, 40, txt, col, size=14)
     c.save("find_keys.png" if keys else "find.png")
 
