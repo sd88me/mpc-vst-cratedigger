@@ -45,6 +45,10 @@ Current look (`tools/make_tui.py` + primitives in `tools/mockup_skin.py`; previe
 - Hardware-learned rules for this skin: text draws at 0.66 x TUI height; keep titles centred (the Q tag covers the top-left corner of the active group); touch areas of neighbouring keys must not overlap (arrow keys have an 8 px pad).
 Deployed: the Live III and the Force both received the build of 2026-11-08 up to the bigger arrows / borderless keys; commits after 97b767f (grey panel, FIND rearrangement, tidy-up) are built but not yet deployed (ask first, restarts lose unsaved data).
 
+## Release 2.0.0: DRAFT staged (2026-11-08)
+Branch `rev-sdk` is pushed (not merged, no tag). Draft release `cratedigger-vst-v2.0.0` (https://github.com/sd88me/mpc-vst-cratedigger/releases) holds the two zips from `tools/package.sh` and `docs/RELEASE-NOTES-2.0.0.md`; targets the rev-sdk commit at staging time. Both devices run the release builds (betas removed; the old 1.x entries replaced/removed).
+To publish after Akai's launch (owner decides): merge rev-sdk to main, then publish the draft (retarget to main if needed); the catalog picks up published releases only, and its SDK-zip pattern (`*-mpc-sdk.zip`, tools/sdk_zip.py in mpc-vst-plugins) is NOT used by these zips yet: check `docs/CATALOG*.md` before publishing so the catalog entry doesn't flag the release.
+
 ## Not tested yet (do these before any release)
 1. (done 2026-11-08) Force (32-bit) loads and works. The engine-copy fallback for non-executable drives is still untested.
 2. FIND tab: popup keyboard, YouTube and channel searches, `channels.txt` (the plugin folder's own `channels.txt` if no 1.x install).
