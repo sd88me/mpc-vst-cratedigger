@@ -167,11 +167,11 @@ def key(c, cx, cy, w, h, label=None, color="cream", lit=False, size=13, sub=None
     c.r((cx - w / 2 + 3, cy - h / 2 + 3, cx + w / 2 - 3, cy + h / 2 - 3), 2, outline=(255, 255, 255, 120), width=1)
     c.r((cx - w / 2 + 6, cy - h / 2 + 6, cx + w / 2 - 6, cy + h / 2 - 6), 2, outline=(0, 0, 0, 30), width=1)
     ly = cy - h / 2 - 4
-    col = LAMP[lamp]
-    if lit:
+    col = LAMP[lamp] if lamp else None
+    if col and lit:
         glow(c, cx, ly, 10, col, 190)
         c.d.rectangle([(cx - 9) * S, (ly - 1.5) * S, (cx + 9) * S, (ly + 2) * S], fill=tuple(min(255, v + 30) for v in col))
-    else:
+    elif col:
         c.d.rectangle([(cx - 9) * S, (ly - 1.5) * S, (cx + 9) * S, (ly + 2) * S], fill=tuple(v // 4 for v in col) + (200,))
     if label:
         c.t((cx, cy - (7 if sub else 0) + 1), label, size, ink, "mm", "b")
@@ -179,14 +179,17 @@ def key(c, cx, cy, w, h, label=None, color="cream", lit=False, size=13, sub=None
         c.t((cx, cy + 12), sub, 8, ink, "mm")
 
 
-def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), body=(36, 36, 40), numbers=True):
+def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), body=(36, 36, 40), numbers=True, ruler=True, only_ruler=False):
     """Knurled knob: big = the grey-blue CURSOR/DATA style with machined rings, otherwise black with a white pointer. A printed dot ruler
     with 0 / 5 / 10 around it, a soft specular highlight, a drop shadow."""
-    for i in range(11):
-        a = math.radians(135 + i * 27)
-        c.ell(cx + math.cos(a) * (r + 10), cy + math.sin(a) * (r + 10), 1.7, 1.7, fill=INK)
-        if numbers and i in (0, 5, 10):
-            c.t((cx + math.cos(a) * (r + 21), cy + math.sin(a) * (r + 21)), str(i), 8, INK)
+    if ruler or only_ruler:
+        for i in range(11):
+            a = math.radians(135 + i * 27)
+            c.ell(cx + math.cos(a) * (r + 10), cy + math.sin(a) * (r + 10), 1.7, 1.7, fill=INK)
+            if numbers and i in (0, 5, 10):
+                c.t((cx + math.cos(a) * (r + 21), cy + math.sin(a) * (r + 21)), str(i), 8, INK)
+    if only_ruler:
+        return
     c.shadow((cx - r, cy - r, cx + r, cy + r), r, 7, 7, 160)
     if big:
         c.ell(cx, cy, r, r, fill=(104, 114, 134), outline=(46, 52, 66), width=2)
