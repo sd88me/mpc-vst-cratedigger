@@ -2,17 +2,9 @@
 
 ## Install / upgrade
 
-Download the latest release zip from
-[Releases](https://github.com/sd88me/mpc-vst-cratedigger/releases), then:
-
-```sh
-scp -r Crate-Digger-<version> root@<device-ip>:/tmp/
-ssh root@<device-ip> sh /tmp/Crate-Digger-<version>/install.sh
-```
-
-This stops MPC (save your project first), backs up `MPC.settings`, installs the plugin, and
-restarts MPC. If Crate Digger is already installed, running this again just upgrades it in
-place — no need to remove it first. Add `-y` to skip the confirmation prompt.
+Download the package for your device from [Releases](https://github.com/sd88me/mpc-vst-cratedigger/releases) and follow its `INSTALL.txt` (or the README).
+On a Force run `install-force.sh` from the unzipped package as root; it stops the MPC (save your project first), installs the plugin, and restarts it.
+An older Crate Digger is replaced and your `channels.txt` is kept.
 
 ## Search shows an "error" status
 
