@@ -117,7 +117,7 @@ LEV_X, LEV_Y, LEV_W, LEV_H = 1068, 24, 160, 16
 
 
 def master_bg(c):
-    c.r((700, 6, 1240, 78), 4, fill=M.SILK)
+    c.r((700, 6, 1240, 78), 4, fill=M.PUTTY_PANEL)
     c.t((718, 42), "GAIN", 10, M.INK, "lm", "b")
     c.t((1016, 42), "LEVEL", 9, M.INK, "lm", "b")
     c.t((1062, 30), "L", 9, M.INK)

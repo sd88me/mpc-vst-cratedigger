@@ -146,6 +146,7 @@ def invbar(c, x0, y0, x1, y1):
 SILK = (188, 186, 176)
 
 
+PUTTY_PANEL = (188, 186, 176)   # the GAIN / LEVEL plate keeps the putty section colour
 SILK = (146, 150, 146)   # the cool mid-grey of the MPC60 pad well: every printed section is this colour, flat, no outline
 
 
@@ -242,7 +243,7 @@ def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), bod
 
 def master(c, gain=0.5):
     """GAIN (a wide horizontal fader) and the stereo level meter: a compact printed section at the top right of every tab."""
-    c.r((700, 6, 1240, 78), 4, fill=SILK)
+    c.r((700, 6, 1240, 78), 4, fill=PUTTY_PANEL)
     c.t((718, 42), "GAIN", 10, INK, "lm", "b")
     c.r((780, 38, 980, 46), 3, fill=(20, 20, 22), outline=(60, 60, 62), width=1)   # fader slot, ticks, cap
     for i in range(21):
