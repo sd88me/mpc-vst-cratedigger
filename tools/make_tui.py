@@ -347,12 +347,13 @@ def build_filters():
 
 
 # ---- FIND --------------------------------------------------------------------------------------------------------------------------------------
-def selector(c, p, cx, cy, key, name, gap, r=22):
+def selector(c, p, cx, cy, key, name, gap=None, r=28):
+    """A knob with its name above it and big ◄ ► keys below, like the FILTERS knobs."""
     M.knob(c, cx, cy, r, 0.0, None, big=True, numbers=False, only_ruler=True)
-    c.t((cx, cy + r + 17), name, 9, M.INK)
+    c.t((cx, cy - r - 22), name, 10, M.INK, "mm", "tb")
     add_knob(p, key, cx, cy, r)
-    arrow(p, key + "_prev", "◄", cx - gap, cy, w=44, h=34, size=14)
-    arrow(p, key + "_next", "►", cx + gap, cy, w=44, h=34, size=14)
+    arrow(p, key + "_prev", "◄", cx - 44, cy + 66, w=72, h=44, size=20)
+    arrow(p, key + "_next", "►", cx + 44, cy + 66, w=72, h=44, size=20)
 
 
 def build_find():
@@ -388,18 +389,18 @@ def build_find():
     TOP, BOT = 358, 616
     M.brushed(c, (40, TOP, 290, BOT))
     M.bracket(c, 56, 274, TOP + 16, "DISCOGS")
-    p.key("source_discogs", "DISCOGS", "cream", 165, 430, 160, 64, size=15, toggle=True, lamp="red")
-    c.t((165, 490), "USES THE FILTERS TAB", 8, M.INK)
+    p.key("source_discogs", "DISCOGS", "cream", 165, 424, 160, 64, size=15, toggle=True, lamp="red")
+    c.t((165, 484), "USES THE FILTERS TAB", 8, M.INK)
     M.brushed(c, (304, TOP, 1090, BOT))
     M.bracket(c, 320, 712, TOP + 16, "YOUTUBE")
     c.line([(724, TOP + 10), (724, BOT - 10)], (96, 94, 86), 1)
     M.bracket(c, 736, 1074, TOP + 16, "YOUTUBE CHANNEL")
-    p.key("source_youtube", "YOUTUBE", "cream", 400, 430, 150, 64, size=15, toggle=True, lamp="red")
-    p.key("music_btn", "MUSIC ONLY", "cream", 616, 430, 150, 64, size=13, toggle=True, lamp="red")
-    selector(c, p, 400, 540, "min_len", "MIN LENGTH", 62, r=28)
-    selector(c, p, 616, 540, "max_len", "MAX LENGTH", 62, r=28)
-    p.key("source_channel", "CHANNEL", "cream", 905, 430, 170, 64, size=15, toggle=True, lamp="red")
-    selector(c, p, 905, 540, "channel", "CHANNEL  (CHANNELS.TXT)", 90, r=28)
+    p.key("source_youtube", "YOUTUBE", "cream", 400, 424, 150, 64, size=15, toggle=True, lamp="red")
+    p.key("music_btn", "MUSIC ONLY", "cream", 616, 424, 150, 64, size=13, toggle=True, lamp="red")
+    selector(c, p, 400, 516, "min_len", "MIN LENGTH")
+    selector(c, p, 616, 516, "max_len", "MAX LENGTH")
+    p.key("source_channel", "CHANNEL", "cream", 905, 424, 170, 64, size=15, toggle=True, lamp="red")
+    selector(c, p, 905, 516, "channel", "CHANNEL  (CHANNELS.TXT)")
     M.brushed(c, (1104, TOP, 1240, BOT))
     M.bracket(c, 1116, 1228, TOP + 16, "SEARCH")
     p.key("keys", "KEYBOARD", "dark", 1172, 440, 112, 84, size=13)

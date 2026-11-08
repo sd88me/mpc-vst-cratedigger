@@ -146,7 +146,7 @@ def invbar(c, x0, y0, x1, y1):
 SILK = (188, 186, 176)
 
 
-SILK = (188, 186, 176)   # a slightly darker putty: a printed (silk-screened) section, flat, no outline
+SILK = (146, 150, 146)   # the cool mid-grey of the MPC60 pad well: every printed section is this colour, flat, no outline
 
 
 def title_rule(c, x0, x1, y, text, ink=INK, rule=(96, 94, 86)):
