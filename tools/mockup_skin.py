@@ -216,7 +216,14 @@ def master(c, gain=0.5):
     c.r((840, 6, 1240, 78), 4, fill=SILK)
     c.t((858, 34), "MAIN", 9, INK, "lm", "b")
     c.t((858, 48), "VOLUME", 9, INK, "lm", "b")
-    knob(c, 934, 42, 17, gain, None, numbers=False)
+    c.r((912, 38, 972, 46), 3, fill=(20, 20, 22), outline=(60, 60, 62), width=1)   # horizontal fader: slot, ticks, cap
+    for i in range(11):
+        c.line([(914 + i * 5.6, 52), (914 + i * 5.6, 56 if i % 5 == 0 else 54)], INK, 1)
+    cx = 912 + gain * 60
+    c.shadow((cx - 7, 30, cx + 7, 54), 2, 2, 2, 140)
+    vgrad(c, (cx - 7, 30, cx + 7, 54), (236, 236, 232), (170, 170, 166), 2)
+    c.r((cx - 7, 30, cx + 7, 54), 2, outline=(60, 60, 58), width=1)
+    c.line([(cx, 32), (cx, 52)], (40, 40, 40), 2)
     for row, lit_n in enumerate((6, 5)):
         c.t((988, 30 + row * 22), "LR"[row], 9, INK)
         for i in range(10):
