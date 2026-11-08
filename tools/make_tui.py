@@ -358,43 +358,44 @@ def build_find():
     M.lcd(c, (40, 82, 1240, 349))
     lcd_header_static(c, 66, 112, 1212)
     lcd_header_live(p, 66, 112, 1212)
-    # the LCD in three columns, each directly above the panel of the same name; the active source's column title is lit
-    cols = [(66, 308, "DISCOGS"), (340, 768, "CHANNEL"), (800, 1212, "YOUTUBE")]
-    for i, (x0, x1, title) in enumerate(cols):
+    # the LCD in three columns, each directly above its panel: DISCOGS, YOUTUBE, and CHANNEL (an extension of YOUTUBE, searching one channel)
+    cols = [(66, 308, "DISCOGS", 0), (340, 768, "YOUTUBE", 2), (800, 1212, "CHANNEL", 1)]
+    for i, (x0, x1, title, src) in enumerate(cols):
         M.lt(c, (x0 + 6, 196), title, 15)
         c.d.line([((x0 - 14) * S, 186 * S), ((x0 - 14) * S, 292 * S)], fill=M.LCD_DIM + (120,), width=S) if i else None
         lit = Image.new("RGBA", (x1 - x0, 26), (0, 0, 0, 0))
-        ImageDraw.Draw(lit).rounded_rectangle((0, 0, x1 - x0 - 1, 25), 3, fill=(120, 160, 255, 110))
+        ImageDraw.Draw(lit).rounded_rectangle((0, 0, x1 - x0 - 1, 25), 3, fill=(20, 70, 30, 120))
         p.kids.append(entry("source %d" % i, "Image", {"version": 2, "imageType": "Regular", "colour": "0", "image": save(lit, "srclit_%d.png" % i)},
-                            "%d 184 %d 26" % (x0, x1 - x0), ind=["IndexedEnabling/%d/3/%s" % (i, P("source"))]))
+                            "%d 184 %d 26" % (x0, x1 - x0), ind=["IndexedEnabling/%d/3/%s" % (src, P("source"))]))
     for j, (key, cap) in enumerate([("genre", "GENRE"), ("style", "STYLE"), ("decade", "DECADE"), ("country", "COUNTRY")]):
         M.lt(c, (72, 224 + j * 20), cap, 11, dim=True)
         p.lcd_text(key, 150, 224 + j * 20, 150, size=15, h=22, handle="Text")
-    M.lt(c, (346, 224), "NAME", 11, dim=True)
-    p.lcd_text("channel", 400, 226, 360, size=20, h=28, handle="Text")
-    M.lt(c, (806, 224), "LENGTH", 11, dim=True)
-    p.lcd_text("min_len", 880, 226, 100, size=20, h=28, handle="Text")
-    M.lt(c, (984, 226), "-", 20)
-    p.lcd_text("max_len", 1000, 226, 100, size=20, h=28, handle="Text")
-    M.lt(c, (806, 258), "MUSIC ONLY", 11, dim=True)
-    p.lcd_text("music", 910, 260, 150, size=20, h=28, handle="Text")
+    M.lt(c, (346, 226), "LENGTH", 11, dim=True)
+    p.lcd_text("min_len", 420, 228, 100, size=20, h=28, handle="Text")
+    M.lt(c, (524, 228), "-", 20)
+    p.lcd_text("max_len", 540, 228, 100, size=20, h=28, handle="Text")
+    M.lt(c, (346, 260), "MUSIC ONLY", 11, dim=True)
+    p.lcd_text("music", 450, 262, 150, size=20, h=28, handle="Text")
+    M.lt(c, (806, 226), "NAME", 11, dim=True)
+    p.lcd_text("channel", 860, 228, 350, size=20, h=28, handle="Text")
     c.d.rectangle([66 * S, 298 * S, 1214 * S, 299 * S], fill=M.LCD_DIM)
     M.lt(c, (72, 319), "TEXT", 12, dim=True)
     p.lcd_text("query", 130, 319, 1080, size=24, h=34)
     M.brushed(c, (40, 356, 300, 530))
     M.bracket(c, 56, 284, 372, "DISCOGS")
-    p.key("source_discogs", "DISCOGS", "blue", 170, 424, 160, 56, size=15, toggle=True, lamp="red")
+    p.key("source_discogs", "DISCOGS", "cream", 170, 424, 160, 56, size=15, toggle=True, lamp="red")
     c.t((170, 478), "USES THE FILTERS TAB", 8, M.INK)
-    M.brushed(c, (316, 356, 760, 530))
-    M.bracket(c, 332, 744, 372, "CHANNEL")
-    p.key("source_channel", "CHANNEL", "blue", 538, 424, 160, 56, size=15, toggle=True, lamp="red")
-    selector(c, p, 538, 482, "channel", "CHANNEL  (CHANNELS.TXT)", 76)
-    M.brushed(c, (776, 356, 1240, 530))
-    M.bracket(c, 792, 1224, 372, "YOUTUBE")
-    p.key("source_youtube", "YOUTUBE", "blue", 880, 424, 140, 56, size=15, toggle=True, lamp="red")
-    p.key("music_btn", "MUSIC ONLY", "cream", 1060, 424, 140, 56, size=13, toggle=True, lamp="red")
-    selector(c, p, 870, 482, "min_len", "MIN LENGTH", 52)
-    selector(c, p, 1070, 482, "max_len", "MAX LENGTH", 52)
+    # one silk-screened section: YOUTUBE on the left, its CHANNEL extension on the right
+    M.brushed(c, (316, 356, 1240, 530))
+    M.bracket(c, 332, 780, 372, "YOUTUBE")
+    c.line([(790, 366), (790, 520)], (96, 94, 86), 1)
+    M.bracket(c, 800, 1224, 372, "YOUTUBE CHANNEL")
+    p.key("source_youtube", "YOUTUBE", "cream", 400, 424, 140, 56, size=15, toggle=True, lamp="red")
+    p.key("music_btn", "MUSIC ONLY", "cream", 580, 424, 140, 56, size=13, toggle=True, lamp="red")
+    selector(c, p, 430, 482, "min_len", "MIN LENGTH", 52)
+    selector(c, p, 620, 482, "max_len", "MAX LENGTH", 52)
+    p.key("source_channel", "CHANNEL", "cream", 1020, 424, 160, 56, size=15, toggle=True, lamp="red")
+    selector(c, p, 1020, 482, "channel", "CHANNEL  (CHANNELS.TXT)", 76)
     M.brushed(c, (40, 540, 1240, 616))
     M.bracket(c, 56, 1224, 556, "SEARCH")
     p.key("keys", "KEYBOARD", "dark", 150, 590, 160, 40, size=13)
@@ -463,8 +464,8 @@ def preview(pages, tabs):
         for e in p.kids:
             cd = e["componentData"]
             x, y, w, h = [float(v) for v in e["bounds"]["bounds"].split()]
-            if e["bounds"].get("additionalInvalidatingHandles") and "noop" not in cd["name"] and not cd["name"].startswith("kb_"):
-                pass
+            if "--nokb" in sys.argv and (cd["name"] == "noop" or cd["type"].startswith("cd_kb_") or cd["type"] == "cd_kbplate"):
+                continue
             if cd["type"] == "Image" and cd["data"].get("imageType") == "FilmStrip":
                 st = Image.open(os.path.join(OUT, cd["data"]["image"])).convert("RGBA")
                 n = cd["data"]["numFrames"]
