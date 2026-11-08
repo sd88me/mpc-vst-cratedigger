@@ -182,15 +182,19 @@ LAMP = {"green": (70, 230, 120), "red": (255, 60, 40), "amber": (255, 176, 40)}
 
 
 def key(c, cx, cy, w, h, label=None, color="cream", lit=False, size=13, sub=None, lamp="red"):
-    """A square plastic key in the period colours (cream, dark grey, pale blue) labelled by what it does, with the small indicator lamp above
-    it (red, green or amber; glowing when lit), as on the sampler's function keys."""
+    """A plastic key in the MPC60 manner, with no drawn border: a soft contact shadow, a darker side wall visible under the cap, and a cap with
+    a vertical gradient, a faint specular line along the top edge and a subtle shade near the bottom. Labelled by what it does; the small
+    indicator lamp sits above it (glowing when lit)."""
     top, bot, edge, ink = KEYCOL[color]
-    box = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
-    c.shadow(box, 3, 3, 3, 140)
-    vgrad(c, box, top, bot, 3)
-    c.r(box, 3, outline=edge, width=2)
-    c.r((cx - w / 2 + 3, cy - h / 2 + 3, cx + w / 2 - 3, cy + h / 2 - 3), 2, outline=(255, 255, 255, 120), width=1)
-    c.r((cx - w / 2 + 6, cy - h / 2 + 6, cx + w / 2 - 6, cy + h / 2 - 6), 2, outline=(0, 0, 0, 30), width=1)
+    x0, y0, x1, y1 = cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2
+    c.shadow((x0, y0 + 2, x1, y1), 4, 4, 3, 150)
+    rad = 4 if h < 50 else 5
+    wall = tuple(int(v * 0.58) for v in bot)
+    vgrad(c, (x0, y0 + 3, x1, y1 + 1), wall, tuple(int(v * 0.45) for v in bot), rad)            # the side wall under the cap
+    face = (x0, y0, x1, y1 - 3)
+    vgrad(c, face, top, bot, rad)
+    c.line([(x0 + rad + 2, y0 + 1.5), (x1 - rad - 2, y0 + 1.5)], (255, 255, 255, 150), 1.4)      # specular edge
+    c.line([(x0 + rad + 2, y1 - 4.5), (x1 - rad - 2, y1 - 4.5)], (0, 0, 0, 38), 1.4)              # shade where the cap rolls under
     ly = cy - h / 2 - 4
     col = LAMP[lamp] if lamp else None
     if col and lit:
@@ -199,9 +203,9 @@ def key(c, cx, cy, w, h, label=None, color="cream", lit=False, size=13, sub=None
     elif col:
         c.d.rectangle([(cx - 9) * S, (ly - 1.5) * S, (cx + 9) * S, (ly + 2) * S], fill=tuple(v // 4 for v in col) + (200,))
     if label:
-        c.t((cx, cy - (7 if sub else 0) + 1), label, size, ink, "mm", "b")
+        c.t((cx, cy - (7 if sub else 0) - 1), label, size, ink, "mm", "b")
     if sub:
-        c.t((cx, cy + 12), sub, 8, ink, "mm")
+        c.t((cx, cy + 10), sub, 8, ink, "mm")
 
 
 def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), body=(36, 36, 40), numbers=True, ruler=True, only_ruler=False, ruler_ink=None):

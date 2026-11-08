@@ -54,7 +54,7 @@ def key_images(name, label, color, w, h, size=13, lamp=None, toggle=False):
         sp = Sprite(sw, sh)
         M.key(sp, sw / 2, PAD_TOP + h / 2, w, h, label, color, lit=(on and toggle), size=size, lamp=lamp)
         if on and not toggle:
-            sp.r((sw / 2 - w / 2, PAD_TOP, sw / 2 + w / 2, PAD_TOP + h), 3, fill=(0, 0, 0, 46))
+            sp.r((sw / 2 - w / 2 + 1, PAD_TOP + 1, sw / 2 + w / 2 - 1, PAD_TOP + h - 3), 4, fill=(0, 0, 0, 52))
         outs.append(save(sp.image(), "key_%s_%s.png" % (name, "on" if on else "off")))
     return outs[0], outs[1], sw, sh
 
@@ -347,7 +347,7 @@ def build_filters():
 # ---- FIND --------------------------------------------------------------------------------------------------------------------------------------
 def selector(c, p, cx, cy, key, name, gap, r=22):
     M.knob(c, cx, cy, r, 0.0, None, big=True, numbers=False, only_ruler=True)
-    c.t((cx, cy + r + 20), name, 9, M.INK)
+    c.t((cx, cy + r + 17), name, 9, M.INK)
     add_knob(p, key, cx, cy, r)
     arrow(p, key + "_prev", "◄", cx - gap, cy, w=44, h=34, size=14)
     arrow(p, key + "_next", "►", cx + gap, cy, w=44, h=34, size=14)
@@ -384,19 +384,19 @@ def build_find():
     p.lcd_text("query", 130, 319, 1080, size=24, h=34)
     M.brushed(c, (40, 356, 300, 530))
     M.bracket(c, 56, 284, 372, "DISCOGS")
-    p.key("source_discogs", "DISCOGS", "cream", 170, 424, 160, 56, size=15, toggle=True, lamp="red")
-    c.t((170, 478), "USES THE FILTERS TAB", 8, M.INK)
+    p.key("source_discogs", "DISCOGS", "cream", 170, 414, 160, 56, size=15, toggle=True, lamp="red")
+    c.t((170, 468), "USES THE FILTERS TAB", 8, M.INK)
     # one silk-screened section: YOUTUBE on the left, its CHANNEL extension on the right
     M.brushed(c, (316, 356, 1240, 530))
     M.bracket(c, 332, 780, 372, "YOUTUBE")
     c.line([(790, 366), (790, 520)], (96, 94, 86), 1)
     M.bracket(c, 800, 1224, 372, "YOUTUBE CHANNEL")
-    p.key("source_youtube", "YOUTUBE", "cream", 400, 424, 140, 56, size=15, toggle=True, lamp="red")
-    p.key("music_btn", "MUSIC ONLY", "cream", 580, 424, 140, 56, size=13, toggle=True, lamp="red")
-    selector(c, p, 430, 482, "min_len", "MIN LENGTH", 52)
-    selector(c, p, 620, 482, "max_len", "MAX LENGTH", 52)
-    p.key("source_channel", "CHANNEL", "cream", 1020, 424, 160, 56, size=15, toggle=True, lamp="red")
-    selector(c, p, 1020, 482, "channel", "CHANNEL  (CHANNELS.TXT)", 76)
+    p.key("source_youtube", "YOUTUBE", "cream", 420, 414, 140, 56, size=15, toggle=True, lamp="red")
+    p.key("music_btn", "MUSIC ONLY", "cream", 640, 414, 140, 56, size=13, toggle=True, lamp="red")
+    selector(c, p, 420, 486, "min_len", "MIN LENGTH", 70)
+    selector(c, p, 640, 486, "max_len", "MAX LENGTH", 70)
+    p.key("source_channel", "CHANNEL", "cream", 1020, 414, 160, 56, size=15, toggle=True, lamp="red")
+    selector(c, p, 1020, 486, "channel", "CHANNEL  (CHANNELS.TXT)", 84)
     M.brushed(c, (40, 540, 1240, 616))
     M.bracket(c, 56, 1224, 556, "SEARCH")
     p.key("keys", "KEYBOARD", "dark", 150, 590, 160, 40, size=13)
