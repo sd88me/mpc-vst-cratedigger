@@ -337,7 +337,7 @@ def build_filters():
     c.t((1110, 566), "SEARCH DISCOGS", 9, M.INK)
     add_master(p)
     p.qgroup((40, 420, 830, 610), ["genre", "style", "decade", "region"])
-    p.qgroup((830, 420, 1240, 610), ["country", "search"])
+    p.qgroup((806, 424, 1240, 610), ["country", "search"])
     return p, c
 
 
@@ -353,7 +353,7 @@ def selector(c, p, cx, cy, key, name, gap, r=22):
 def build_find():
     c = base_canvas("FIND")
     p = Page("FIND", 2)
-    M.lcd(c, (40, 82, 1240, 345))
+    M.lcd(c, (40, 82, 1240, 349))
     lcd_header_static(c, 66, 112, 1212)
     lcd_header_live(p, 66, 112, 1212)
     # the LCD in three columns, each directly above the panel of the same name; the active source's column title is lit
@@ -377,8 +377,8 @@ def build_find():
     M.lt(c, (806, 258), "MUSIC ONLY", 11, dim=True)
     p.lcd_text("music", 910, 260, 150, size=20, h=28, handle="Text")
     c.d.rectangle([66 * S, 298 * S, 1214 * S, 299 * S], fill=M.LCD_DIM)
-    M.lt(c, (72, 322), "TEXT", 12, dim=True)
-    p.lcd_text("query", 130, 322, 1080, size=24, h=34)
+    M.lt(c, (72, 319), "TEXT", 12, dim=True)
+    p.lcd_text("query", 130, 319, 1080, size=24, h=34)
     M.brushed(c, (40, 356, 300, 530))
     M.bracket(c, 56, 284, 372, "DISCOGS")
     p.key("source_discogs", "DISCOGS", "blue", 170, 424, 160, 56, size=15, toggle=True, lamp="red")

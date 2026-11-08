@@ -139,8 +139,8 @@ def plate(c, box, title=None, color=None):
     x0, y0, x1, y1 = box
     c.r(box, 4, fill=SILK)
     if title:
-        c.t((x0 + 14, y0 + 15), title, 10, INK, "lm", "b")
-        c.line([(x0 + 24 + len(title) * 7.4, y0 + 15), (x1 - 14, y0 + 15)], (120, 120, 116), 1)
+        c.t((x0 + 50, y0 + 15), title, 10, INK, "lm", "b")
+        c.line([(x0 + 60 + len(title) * 7.4, y0 + 15), (x1 - 14, y0 + 15)], (120, 120, 116), 1)
 
 
 def brushed(c, box):
@@ -150,6 +150,7 @@ def brushed(c, box):
 
 def bracket(c, x0, x1, y, text):
     """A printed section title: left-aligned small caps and a rule to the right edge."""
+    x0 += 36   # leave the corner free for the MPC's Q-Link tag
     c.t((x0, y), text, 10, INK, "lm", "b")
     c.line([(x0 + 10 + len(text) * 7.6, y), (x1, y)], (120, 120, 116), 1)
 
