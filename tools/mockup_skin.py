@@ -211,6 +211,24 @@ def knob(c, cx, cy, r, value, name=None, big=False, pointer=(245, 245, 240), bod
         c.t((cx, cy - r - 32), name, 10, INK)
 
 
+def master(c, gain=0.5):
+    """MAIN VOLUME (the plugin's gain) and the stereo level meter: a compact printed section at the top right of every tab."""
+    c.r((840, 6, 1240, 78), 4, fill=SILK)
+    c.t((858, 34), "MAIN", 9, INK, "lm", "b")
+    c.t((858, 48), "VOLUME", 9, INK, "lm", "b")
+    knob(c, 934, 42, 17, gain, None, numbers=False)
+    for row, lit_n in enumerate((6, 5)):
+        c.t((988, 30 + row * 22), "LR"[row], 9, INK)
+        for i in range(10):
+            col = (255, 60, 40) if i == 9 else ((255, 190, 40) if i >= 7 else (70, 230, 120))
+            on = i < lit_n + (2 if i < 6 and row == 0 else 0)
+            x, y = 1008 + i * 17, 30 + row * 22
+            if on:
+                glow(c, x, y, 7, col, 130)
+            c.r((x - 6, y - 5, x + 6, y + 5), 2, fill=col if on else tuple(v // 4 for v in col), outline=(40, 40, 40), width=1)
+    c.t((1204, 42), "LEVEL", 9, INK, "mm", "b")
+
+
 def header(c, tabname):
     """The wordmark in the Dexed manner: bold letters with horizontal stripe cuts, a tagline and a model badge."""
     txt = "CRATE DIGGER"
@@ -229,6 +247,7 @@ def header(c, tabname):
     c.t((44, 62), "STEREO DIGITAL RECORD SAMPLER", 8, INK, "lm")
     c.line([(44, 71), (330, 71)], (60, 60, 60, 160), 1)
     c.d.text((560 * S, 46 * S), "DIG 1", font=font(24, "b"), fill=(214, 214, 208), anchor="mm", stroke_width=S, stroke_fill=(120, 120, 116))
+    master(c)
 
 
 def lcd_head(c, x0, y0, x1, now="OPEN SESAME - TREVOR NOVA", status="STREAMING", time="0:42", search="DONE - 12 RESULTS IN 3.1S"):
@@ -243,85 +262,66 @@ def lcd_head(c, x0, y0, x1, now="OPEN SESAME - TREVOR NOVA", status="STREAMING",
     lt(c, (x0 + 70, y0 + 44), search, 16)
 
 
-def volume_panel(c, gain=0.5, extra=None):
-    """The right-hand plate: MAIN VOLUME (the plugin's gain) and the stereo level meter (two rows of lamps), then page extras."""
-    plate(c, (1004, 14, 1250, 614), "MAIN VOLUME")
-    knob(c, 1127, 118, 36, gain)
-    c.t((1127, 182), "GAIN", 9, INK)
-    c.t((1127, 214), "LEVEL", 10, INK, "mm", "b")
-    for row, lit_n in enumerate((6, 5)):   # L and R
-        c.t((1034, 236 + row * 22), "LR"[row], 9, INK)
-        for i in range(10):
-            col = (255, 60, 40) if i == 9 else ((255, 190, 40) if i >= 7 else (70, 230, 120))
-            on = i < lit_n + (2 if i < 6 and row == 0 else 0)
-            x, y = 1056 + i * 18, 236 + row * 22
-            if on:
-                glow(c, x, y, 8, col, 130)
-            c.r((x - 6, y - 5, x + 6, y + 5), 2, fill=col if on else tuple(v // 4 for v in col), outline=(40, 40, 40), width=1)
-    if extra:
-        extra()
-
-
 def play():
     c = C()
     header(c, "PLAY")
-    lcd(c, (40, 76, 988, 436))
-    lcd_head(c, 66, 106, 960)
-    c.d.rectangle([66 * S, 164 * S, 962 * S, 166 * S], fill=LCD_DIM)
+    lcd(c, (40, 82, 1240, 440))
+    lcd_head(c, 66, 112, 1212)
+    c.d.rectangle([66 * S, 170 * S, 1214 * S, 172 * S], fill=LCD_DIM)
     rows = [("OPEN SESAME", "TREVOR NOVA", "4:12"), ("AMEN BREAK", "THE WINSTONS", "2:05"), ("ACID TRACKS", "PHUTURE", "6:55"), ("DEEP SPACE", "NOVA", "5:40"),
             ("MOVE YOUR BODY", "MARSHALL JEFFERSON", "3:30"), ("STRINGS OF LIFE", "RHYTHIM IS RHYTHIM", "5:12"), ("NO WAY BACK", "ADONIS", "4:49"), ("(UNTITLED)", "", "7:03")]
     for i, (t, a, d) in enumerate(rows):
         col, row = i // 4, i % 4
-        x0, y0 = 66 + col * 450, 190 + row * 58
+        x0, y0 = 66 + col * 590, 198 + row * 58
         playing = i == 1
         if playing:
-            invbar(c, x0 - 6, y0 - 14, x0 + 436, y0 + 40)
+            invbar(c, x0 - 6, y0 - 14, x0 + 566, y0 + 40)
         lt(c, (x0, y0 + 2), "%02d" % (i + 1), 18, inv=playing)
         lt(c, (x0 + 44, y0 + 2), t, 18, inv=playing)
-        lt(c, (x0 + 430, y0 + 2), d, 15, inv=playing, anchor="rm")
+        lt(c, (x0 + 556, y0 + 2), d, 15, inv=playing, anchor="rm")
         lt(c, (x0 + 44, y0 + 26), a, 12, inv=playing, dim=not playing)
-    # two separate groups: TRANSPORT, and the results / search controls
-    brushed(c, (40, 456, 540, 614))
-    bracket(c, 60, 520, 474, "TRANSPORT")
+    brushed(c, (40, 456, 640, 614))
+    bracket(c, 60, 620, 474, "TRANSPORT")
     for i, (lab, lamp, lit) in enumerate([("◄◄", "red", False), ("▶ ❚❚", "green", True), ("■", "red", False), ("►►", "red", False)]):
-        key(c, 110 + i * 118, 540, 98, 62, lab, "cream", lit=lit, lamp=lamp, size=20 if i != 1 else 18)
+        key(c, 120 + i * 140, 540, 110, 62, lab, "cream", lit=lit, lamp=lamp, size=20 if i != 1 else 18)
     for i, t in enumerate(["BACK 15 S", "PLAY / PAUSE", "STOP", "FORWARD 15 S"]):
-        c.t((110 + i * 118, 584), t, 9, INK)
-    brushed(c, (556, 456, 988, 614))
-    bracket(c, 576, 968, 474, "RESULTS  /  SEARCH")
+        c.t((120 + i * 140, 584), t, 9, INK)
+    brushed(c, (656, 456, 1240, 614))
+    bracket(c, 676, 1220, 474, "RESULTS  /  SEARCH")
     for i, (lab, col, lit, lamp) in enumerate([("◄ PAGE", "cream", False, "red"), ("PAGE ►", "cream", False, "red"), ("SYNC", "cream", True, "amber"), ("SEARCH", "dark", False, "red")]):
-        key(c, 612 + i * 100, 540, 86, 62, lab, col, lit=lit, lamp=lamp, size=13)
-    c.t((612 + 2 * 100, 584), "WAIT FOR MPC PLAY", 8, INK)
-    volume_panel(c, 0.5)
+        key(c, 730 + i * 135, 540, 108, 62, lab, col, lit=lit, lamp=lamp, size=14)
+    c.t((730 + 2 * 135, 584), "WAIT FOR MPC PLAY", 8, INK)
     c.save("play.png")
 
 
 def filters():
     c = C()
     header(c, "FILTERS")
-    lcd(c, (40, 76, 988, 336))
-    lcd_head(c, 66, 106, 960)
-    c.d.rectangle([66 * S, 164 * S, 962 * S, 166 * S], fill=LCD_DIM)
+    lcd(c, (40, 82, 1240, 400))
+    lcd_head(c, 66, 112, 1212)
+    c.d.rectangle([66 * S, 170 * S, 1214 * S, 172 * S], fill=LCD_DIM)
     vals = [("GENRE", "ELECTRONIC"), ("STYLE", "ACID HOUSE"), ("DECADE", "1990s"), ("REGION", "EUROPE"), ("COUNTRY", "GERMANY")]
+    # like the results page: two columns of big entries, the selected one in inverse video, the label on the small line
     for i, (k, v) in enumerate(vals):
-        y = 188 + i * 25
+        col, row = i // 3, i % 3
+        x0, y0 = 66 + col * 590, 198 + row * 62
         sel = i == 1
         if sel:
-            invbar(c, 62, y - 11, 520, y + 11)
-        lt(c, (70, y), k, 14, inv=sel)
-        lt(c, (210, y), v, 15, inv=sel)
-    lt(c, (700, 188), "STYLE FOLLOWS GENRE", 11, dim=True)
-    lt(c, (700, 213), "COUNTRY FOLLOWS REGION", 11, dim=True)
-    plate(c, (40, 350, 988, 614), "DISCOGS FILTERS")
+            invbar(c, x0 - 6, y0 - 15, x0 + 566, y0 + 44)
+        lt(c, (x0, y0 + 4), "%02d" % (i + 1), 20, inv=sel)
+        lt(c, (x0 + 52, y0 + 4), v, 26, inv=sel)
+        lt(c, (x0 + 52, y0 + 32), k, 12, inv=sel, dim=not sel)
+    lt(c, (66 + 590 + 52, 198 + 2 * 62 + 4), "STYLE FOLLOWS GENRE", 13, dim=True)
+    lt(c, (66 + 590 + 52, 198 + 2 * 62 + 30), "COUNTRY FOLLOWS REGION", 13, dim=True)
+    plate(c, (40, 414, 1240, 614), "DISCOGS FILTERS")
     for i, (k, v) in enumerate(vals):
-        cx = 130 + i * 183
-        knob(c, cx, 460, 40, [0.35, 0.5, 0.62, 0.3, 0.45][i], k, big=True)
-        key(c, cx - 30, 556, 44, 28, "◄", size=12)
-        key(c, cx + 30, 556, 44, 28, "►", size=12)
-    def right():
-        bracket(c, 1024, 1230, 356, "DISCOGS")
-        key(c, 1127, 420, 190, 62, "SEARCH", "dark", size=16)
-    volume_panel(c, 0.5, extra=right)
+        cx = 142 + i * 188
+        knob(c, cx, 502, 36, [0.35, 0.5, 0.62, 0.3, 0.45][i], None, big=True, numbers=False)
+        key(c, cx - 70, 502, 36, 28, "◄", size=12)
+        key(c, cx + 70, 502, 36, 28, "►", size=12)
+        c.t((cx, 502 + 56), k, 10, INK, "mm", "b")
+    key(c, 1110, 520, 190, 62, "SEARCH", "dark", size=16)
+    c.t((1110, 566), "SEARCH DISCOGS", 9, INK)
     c.save("filters.png")
 
 
@@ -336,47 +336,45 @@ def selector(c, cx, cy, name, value=0.0, r=22, gap=56):
 def find(keys=False):
     c = C()
     header(c, "FIND")
-    lcd(c, (40, 76, 988, 336))
-    lcd_head(c, 66, 106, 960, search="SEARCH YOUTUBE ..." if keys else "DONE - 12 RESULTS IN 3.1S")
-    c.d.rectangle([66 * S, 164 * S, 962 * S, 166 * S], fill=LCD_DIM)
-    lt(c, (70, 192), "SOURCE", 13, dim=True); lt(c, (170, 192), "YOUTUBE", 15)
-    lt(c, (400, 192), "CHANNEL", 13, dim=True); lt(c, (500, 192), "NONE - SEE CHANNELS.TXT", 15)
-    lt(c, (70, 218), "LENGTH", 13, dim=True); lt(c, (170, 218), "ANY - ANY", 15)
-    lt(c, (400, 218), "MUSIC ONLY", 13, dim=True); lt(c, (540, 218), "OFF", 15)
-    lt(c, (70, 270), "TEXT", 13, dim=True)
-    invbar(c, 160, 254, 960, 288) if keys else None
-    lt(c, (170, 271), "AMEN BREAK_" if keys else "TAP KEYS TO TYPE", 18, inv=keys, dim=not keys)
-    # each source with its own controls
-    brushed(c, (40, 348, 258, 536))
-    bracket(c, 56, 242, 364, "DISCOGS")
-    key(c, 149, 410, 150, 56, "DISCOGS", "blue", size=15)
-    c.t((149, 466), "USES THE FILTERS TAB", 8, INK)
-    brushed(c, (272, 348, 626, 536))
-    bracket(c, 288, 610, 364, "CHANNEL")
-    key(c, 449, 410, 150, 56, "CHANNEL", "blue", size=15)
-    selector(c, 449, 492, "CHANNEL  (CHANNELS.TXT)", gap=66)
-    brushed(c, (640, 348, 988, 536))
-    bracket(c, 656, 972, 364, "YOUTUBE")
-    key(c, 730, 410, 130, 56, "YOUTUBE", "blue", lit=True, size=15)
-    key(c, 890, 410, 130, 56, "MUSIC ONLY", "cream", size=13)
-    selector(c, 718, 492, "MIN LENGTH", gap=46)
-    selector(c, 892, 492, "MAX LENGTH", gap=46)
-    brushed(c, (40, 546, 988, 614))
-    bracket(c, 56, 972, 562, "SEARCH")
-    key(c, 140, 592, 150, 40, "KEYBOARD", "dark", size=13)
-    key(c, 316, 592, 150, 40, "SEARCH", "dark", size=14)
-    volume_panel(c, 0.5)
+    lcd(c, (40, 82, 1240, 340))
+    lcd_head(c, 66, 112, 1212, search="SEARCH YOUTUBE ..." if keys else "DONE - 12 RESULTS IN 3.1S")
+    c.d.rectangle([66 * S, 170 * S, 1214 * S, 172 * S], fill=LCD_DIM)
+    lt(c, (70, 198), "SOURCE", 13, dim=True); lt(c, (170, 198), "YOUTUBE", 15)
+    lt(c, (520, 198), "CHANNEL", 13, dim=True); lt(c, (620, 198), "NONE - SEE CHANNELS.TXT", 15)
+    lt(c, (70, 224), "LENGTH", 13, dim=True); lt(c, (170, 224), "ANY - ANY", 15)
+    lt(c, (520, 224), "MUSIC ONLY", 13, dim=True); lt(c, (660, 224), "OFF", 15)
+    lt(c, (70, 276), "TEXT", 13, dim=True)
+    invbar(c, 160, 260, 1214, 294) if keys else None
+    lt(c, (170, 277), "AMEN BREAK_" if keys else "TAP KEYS TO TYPE", 18, inv=keys, dim=not keys)
+    brushed(c, (40, 354, 300, 540))
+    bracket(c, 56, 284, 370, "DISCOGS")
+    key(c, 170, 416, 160, 56, "DISCOGS", "blue", size=15)
+    c.t((170, 472), "USES THE FILTERS TAB", 8, INK)
+    brushed(c, (316, 354, 760, 540))
+    bracket(c, 332, 744, 370, "CHANNEL")
+    key(c, 538, 416, 160, 56, "CHANNEL", "blue", size=15)
+    selector(c, 538, 494, "CHANNEL  (CHANNELS.TXT)", gap=76)
+    brushed(c, (776, 354, 1240, 540))
+    bracket(c, 792, 1224, 370, "YOUTUBE")
+    key(c, 880, 416, 140, 56, "YOUTUBE", "blue", lit=True, size=15)
+    key(c, 1060, 416, 140, 56, "MUSIC ONLY", "cream", size=13)
+    selector(c, 870, 494, "MIN LENGTH", gap=52)
+    selector(c, 1070, 494, "MAX LENGTH", gap=52)
+    brushed(c, (40, 550, 1240, 616))
+    bracket(c, 56, 1224, 566, "SEARCH")
+    key(c, 150, 596, 160, 38, "KEYBOARD", "dark", size=13)
+    key(c, 340, 596, 160, 38, "SEARCH", "dark", size=14)
     if keys:
-        c.shadow((0, 340, W, H), 0, 8, -3, 170)
-        c.d.rectangle([0, 340 * S, W * S, H * S], fill=SILK)
-        c.t((44, 356), "KEYBOARD", 10, INK, "lm", "b")
-        c.line([(130, 356), (1236, 356)], (120, 120, 116), 1)
+        c.shadow((0, 346, W, H), 0, 8, -3, 170)
+        c.d.rectangle([0, 346 * S, W * S, H * S], fill=SILK)
+        c.t((44, 362), "KEYBOARD", 10, INK, "lm", "b")
+        c.line([(130, 362), (1236, 362)], (120, 120, 116), 1)
         rows = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"]
         for ri, row in enumerate(rows):
             x0 = 118 + [0, 0, 58, 174][ri]
             for k, ch in enumerate(row):
-                key(c, x0 + k * 116, 372 + ri * 52 + 22, 100, 42, ch, "blue" if ri == 0 else "cream", size=18)
-        for (cx, cy, w, txt, col) in [(130, 590, 200, "HIDE", "dark"), (520, 590, 520, "SPACE", "cream"), (880, 590, 190, "CLEAR", "dark"), (1130, 590, 220, "SEARCH", "dark"), (1180, 541, 150, "BACK", "dark")]:
+                key(c, x0 + k * 116, 378 + ri * 52 + 22, 100, 42, ch, "blue" if ri == 0 else "cream", size=18)
+        for (cx, cy, w, txt, col) in [(130, 592, 200, "HIDE", "dark"), (520, 592, 520, "SPACE", "cream"), (880, 592, 190, "CLEAR", "dark"), (1130, 592, 220, "SEARCH", "dark"), (1180, 547, 150, "BACK", "dark")]:
             key(c, cx, cy, w, 40, txt, col, size=14)
     c.save("find_keys.png" if keys else "find.png")
 
