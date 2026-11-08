@@ -329,13 +329,15 @@ def build_filters():
         p.lcd_text(key, cx - 88, 268, 176, size=26, h=44, just=CEN, handle="Text")
     M.lt(c, (640, 366), "STYLE LIST FOLLOWS GENRE   -   COUNTRY LIST FOLLOWS REGION", 13, dim=True, anchor="mm")
     M.plate(c, (40, 414, 1240, 614), "DISCOGS FILTERS", color=BLUE, ink=WHITE)
+    for i in range(1, len(FILTERS)):   # the same column lines as the LCD above
+        c.line([(142 + i * 188 - 94, 438), (142 + i * 188 - 94, 604)], (214, 226, 240, 120), 1)
     for i, (key, cap) in enumerate(FILTERS):
         cx = 142 + i * 188
         c.t((cx, 450), "%02d  %s" % (i + 1, cap), 12, WHITE, "mm", "tb")
         M.knob(c, cx, 512, 34, 0.0, None, big=True, numbers=False, only_ruler=True, ruler_ink=WHITE)
         add_knob(p, key, cx, 512, 34)
-        arrow(p, key + "_prev", "◄", cx - 42, 583, w=76, h=44, size=20)
-        arrow(p, key + "_next", "►", cx + 42, 583, w=76, h=44, size=20)
+        arrow(p, key + "_prev", "◄", cx - 44, 583, w=72, h=44, size=20)
+        arrow(p, key + "_next", "►", cx + 44, 583, w=72, h=44, size=20)
     p.key("search", "SEARCH", "red", 1110, 520, 190, 62, size=16)
     c.t((1110, 566), "SEARCH DISCOGS", 9, WHITE)
     add_master(p)
