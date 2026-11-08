@@ -9,10 +9,10 @@
 #   ./build-sdk.sh            gen params, build both CPUs, assemble the folders (plugin.json, version.xml, Plugin Skins when skins/ exists)
 #   ./build-sdk.sh beta       the same as "Crate Digger 2 Beta" (uid CrDB): installs next to the release
 #   ./build-sdk.sh test       the offline test (tests/run.sh)
-# MPC_SDK: the plugin-vibecode-sdk checkout.
+# MPC_SDK: the mpc-plugin-builder-sdk checkout.
 set -euo pipefail
 cd "$(dirname "$0")"
-SDK="${MPC_SDK:-$HOME/mpc-310-private/plugin-vibecode-sdk/plugin-vibecode-sdk}"
+SDK="${MPC_SDK:-$HOME/mpc-310-private/mpc-plugin-builder-sdk}"
 [ -f "$SDK/framework/mpc_plugin.h" ] || { echo "need the SDK (MPC_SDK)" >&2; exit 1; }
 NAME="Crate Digger"; UID_="'C','r','D','g'"; UIDS=CrDg; SLUG=cratedigger
 if [ "${1:-}" = beta ]; then NAME="Crate Digger 2 Beta"; UID_="'C','r','D','B'"; UIDS=CrDB; SLUG=cratedigger2beta; fi

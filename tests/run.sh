@@ -2,7 +2,7 @@
 # Offline x86 test under ASan/UBSan (no device): the SDK front end + the real core, driven by tests/host_test.cpp. Must print OK.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-SDK="${MPC_SDK:-$HOME/mpc-310-private/plugin-vibecode-sdk/plugin-vibecode-sdk}"
+SDK="${MPC_SDK:-$HOME/mpc-310-private/mpc-plugin-builder-sdk}"
 python3 tools/gen_sdk_params.py >/dev/null
 docker image inspect crate-sdk-x64 >/dev/null 2>&1 || docker build -q -t crate-sdk-x64 --build-arg BASE=gcc:12 scripts >/dev/null
 mkdir -p build/test
