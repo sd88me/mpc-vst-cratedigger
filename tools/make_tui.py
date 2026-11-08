@@ -215,13 +215,14 @@ def add_knob(p, param, cx, cy, r):
     p.kids.append(entry(param, name, {"version": 1, "handleName": "Data"}, "%d %d %d %d" % (cx - size // 2, cy - size // 2, size, size), remap=P(param), focus="Yes"))
 
 
-def arrow(p, param, ch, cx, cy, w=36, h=28, size=12):
+def arrow(p, param, ch, cx, cy, w=36, h=28, size=12, pad=8):
+    """A ◄ / ► key; the touch area is the key plus a small pad, so neighbours never overlap."""
     nm = "arrow_%s" % param
-    sp = Sprite(w + 2 * PAD_X, h + PAD_TOP + PAD_BOT)
-    M.key(sp, sp.w / 2, PAD_TOP + h / 2, w, h, ch, "cream", size=size, lamp=None)
+    sp = Sprite(w + 2 * pad, h + 2 * pad)
+    M.key(sp, sp.w / 2, sp.h / 2, w, h, ch, "cream", size=size, lamp=None)
     img = save(sp.image(), nm + ".png")
     tap_def("cd_" + nm, img, sp.w, sp.h)
-    p.kids.append(entry(nm, "cd_" + nm, {"version": 1, "handleName": "Data"}, "%d %d %d %d" % (cx - sp.w / 2, cy - PAD_TOP - h / 2, sp.w, sp.h), remap=P(param)))
+    p.kids.append(entry(nm, "cd_" + nm, {"version": 1, "handleName": "Data"}, "%d %d %d %d" % (cx - sp.w / 2, cy - sp.h / 2, sp.w, sp.h), remap=P(param)))
 
 
 # ---- shared page art ---------------------------------------------------------------------------------------------------------------------------
@@ -333,8 +334,8 @@ def build_filters():
         c.t((cx, 450), "%02d  %s" % (i + 1, cap), 12, WHITE, "mm", "tb")
         M.knob(c, cx, 512, 34, 0.0, None, big=True, numbers=False, only_ruler=True, ruler_ink=WHITE)
         add_knob(p, key, cx, 512, 34)
-        arrow(p, key + "_prev", "◄", cx - 44, 582)
-        arrow(p, key + "_next", "►", cx + 44, 582)
+        arrow(p, key + "_prev", "◄", cx - 42, 583, w=76, h=44, size=20)
+        arrow(p, key + "_next", "►", cx + 42, 583, w=76, h=44, size=20)
     p.key("search", "SEARCH", "red", 1110, 520, 190, 62, size=16)
     c.t((1110, 566), "SEARCH DISCOGS", 9, WHITE)
     add_master(p)
@@ -348,8 +349,8 @@ def selector(c, p, cx, cy, key, name, gap, r=22):
     M.knob(c, cx, cy, r, 0.0, None, big=True, numbers=False, only_ruler=True)
     c.t((cx, cy + r + 20), name, 9, M.INK)
     add_knob(p, key, cx, cy, r)
-    arrow(p, key + "_prev", "◄", cx - gap, cy, w=36, h=26, size=11)
-    arrow(p, key + "_next", "►", cx + gap, cy, w=36, h=26, size=11)
+    arrow(p, key + "_prev", "◄", cx - gap, cy, w=44, h=34, size=14)
+    arrow(p, key + "_next", "►", cx + gap, cy, w=44, h=34, size=14)
 
 
 def build_find():
