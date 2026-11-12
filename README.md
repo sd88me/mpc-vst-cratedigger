@@ -52,6 +52,7 @@ older Crate Digger (1.x) is replaced and your `channels.txt` is kept. Add `-y` t
 
 The plugin folder is about 125 MB (armv7) or 180 MB (aarch64): it carries its own yt-dlp, Python and ffmpeg and needs no other setup. To upgrade,
 replace the whole plugin folder.
+![FIND](docs/screenshots/find.png)
 
 ## Using it
 1. **FILTERS:** turn a knob (or tap its arrows) to pick a genre, style, decade, region and country; each choice shows on the LCD above its knob.
@@ -79,11 +80,10 @@ The SEARCH and STATUS lines say what went wrong. See [docs/TROUBLESHOOTING.md](d
 ## How it works
 The engine is the [schwung-webstream](https://github.com/charlesvestal/schwung-webstream) core (Charles Vestal, MIT), built here without `fork()`.
 It resolves and streams Discogs results through yt-dlp and ffmpeg on a worker thread into a ring buffer; the MPC's audio thread only copies from the
-ring. `src/sdk/CrateDiggerPlugin.cpp` is the plugin (Akai's MPC Plugin SDK) and `tools/make_tui.py` draws the skin. `docs/HANDOFF-SDK-PORT.md` has the
-developer notes.
+ring. `src/sdk/CrateDiggerPlugin.cpp` is the plugin and `tools/make_tui.py` draws the skin.
 
 ## Build
-Needs Docker and the MPC Plugin SDK. `./build-sdk.sh` builds both CPUs into `build/sdk/`; `tools/package.sh` makes the two zips in `dist/`;
+Needs Docker. `./build-sdk.sh` builds both CPUs into `build/sdk/`; `tools/package.sh` makes the two zips in `dist/`;
 `tests/run.sh` runs the offline test. The engine bundles (yt-dlp, Python, ffmpeg) are taken from the previous release the first time.
 
 ## Known limitations

@@ -1,6 +1,6 @@
 # Crate Digger 2.0.0
 
-A new look and a rebuilt plugin: Crate Digger is now built on Akai's MPC Plugin SDK, with a new screen styled after a vintage MPC.
+A new look and a rebuilt plugin, with a new screen styled after a vintage MPC.
 
 ## What's new
 - **New screen** in three pages: PLAY, FILTERS and FIND. A green LCD shows what is playing, the status, the time and your filters; the five filter
