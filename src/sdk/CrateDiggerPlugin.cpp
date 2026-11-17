@@ -16,9 +16,11 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cerrno>
 #include <chrono>
 #include <cmath>
+#include <fstream>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -36,6 +38,8 @@
 #include "plugin_api_v1.h"
 #include "cratedig_tables.h"
 #include "params_gen.h"
+#include "varispeed.h"
+#include "label_tints.h"
 
 extern "C" plugin_api_v2_t *move_plugin_init_v2(const host_api_v1_t *host);
 extern char **environ;
@@ -68,6 +72,14 @@ static const int NMIN_LENS = (int)(sizeof MIN_LENS / sizeof *MIN_LENS), NMAX_LEN
 static const long KEY_REPEAT_MS = 150;
 static const long TAP_GAP_MS = 300;   /* same popup key twice inside this is one tap */
 struct Channel { std::string link, name; };   /* one line of channels.txt */
+static const int ART_SIDE = 16, ART_CELLS = ART_SIDE * ART_SIDE;   /* the cover on the deck skin's label */
+/* a colour as one of the label cells' 512 swatches: 8 levels of red, green, blue (tools/skin_deck.py draws the same swatches) */
+static inline unsigned short art_index(int r, int g, int b) {
+    return (unsigned short)((((r * 7 + 127) / 255) << 6) | (((g * 7 + 127) / 255) << 3) | ((b * 7 + 127) / 255));
+}
+static inline void art_blank(unsigned short *cells) {   /* no cover: black cells, no dots on the dark display */
+    for (int i = 0; i < ART_CELLS; ++i) cells[i] = 0;
+}
 
 /* Everything the old wrapper's Plugin struct held, minus the VST glue. Guarded by `lock`. */
 struct Engine {
@@ -80,6 +92,15 @@ struct Engine {
     int dim[NDIMS] = {0, 0, 0, 0, 0};     /* filter selection */
     int page = 0;
     float gain = 1.0f;
+    /* the deck: varispeed like a turntable (pitch and tempo together). pitch -1..1 is the fader, x2 doubles its range (8% -> 16%),
+       speed45 plays a 33 at 45 (x1.35). The rate itself is computed by rate_of() and read by the audio callback. */
+    float pitch = 0.0f;
+    bool x2 = false, speed45 = false;
+    int skin = 0;                         /* 0 = the sampler skin, 1 = the deck skin; global, see skin_path */
+    float platter = 0.0f;                 /* the record's angle in degrees, turning while it plays (the deck skin's spinning record) */
+    int arm = 0;                          /* the tonearm, 0..255: how far into the track the stylus is (dragging it seeks) */
+    int tint = 0;                         /* the centre label's colour, 0..23 (from the cover art when there is one) */
+    unsigned short art[ART_CELLS];        /* the deck skin's label display: the cover, 16 x 16 dots, each 8-level RGB (art_index) */
     int source = SRC_DISCOGS;             /* FIND tab: where SEARCH digs */
     int min_len = 0, max_len = 0;         /* YOUTUBE tab: indices into MIN_LENS / MAX_LENS */
     bool music = false;                   /* YOUTUBE tab: YouTube Music songs only */
@@ -446,9 +467,14 @@ static std::string display(Plugin *p, int i) {
     case T_OPTION: return p->kb ? "ON" : "OFF";
     case T_FLOAT: {
         char s[16];
-        std::snprintf(s, sizeof s, "%.2f", p->gain);
+        if (i == P_PITCH) std::snprintf(s, sizeof s, "%+.1f%%", p->pitch * (p->x2 ? 16.0f : 8.0f));
+        else std::snprintf(s, sizeof s, "%.2f", p->gain);
         return s;
     }
+    case T_TOGGLE:
+        if (i == P_SKIN) return p->skin ? "DECK" : "SAMPLER";
+        return p->x2 ? "16%" : "8%";
+    case T_ANIM: return "";   /* moves many times a second: no text, so no display updates */
     case T_SLOT: {
         int idx = p->page * SLOTS + (i - P_RESULT_1);
         return idx < result_count(p) ? result_label(p, idx) : std::string();
@@ -489,6 +515,62 @@ static bool run(std::vector<std::string> args) {
     while (waitpid(pid, &st, 0) < 0) if (errno != EINTR) return false;
     return WIFEXITED(st) && WEXITSTATUS(st) == 0;
 }
+/* Runs a program the engine bundle holds (ffmpeg) and waits: no fork(), and without LD_PRELOAD (a Force's MockbaMod hook is for MPC). */
+static bool run_engine(std::vector<std::string> args) {
+    std::vector<char *> argv, env;
+    for (auto &a : args) argv.push_back(const_cast<char *>(a.c_str()));
+    argv.push_back(nullptr);
+    for (char **e = environ; e && *e; ++e) if (std::strncmp(*e, "LD_PRELOAD=", 11) != 0) env.push_back(*e);
+    env.push_back(nullptr);
+    pid_t pid;
+    if (posix_spawn(&pid, argv[0], nullptr, nullptr, argv.data(), env.data()) != 0) return false;
+    int st = 0;
+    while (waitpid(pid, &st, 0) < 0) if (errno != EINTR) return false;
+    return WIFEXITED(st) && WEXITSTATUS(st) == 0;
+}
+
+/* The deck skin's centre label is the record's cover: fetched, cropped square, shrunk to 16 x 16 (cells, as art_index swatches), and its
+ * colours vote for the label tint (label_tints.h). Returns the tint, or -1 (cells untouched). (The skin shows the cover as cells because the
+ * MPC reads a skin's image files once: a picture file changed later is never drawn, tested on a Live III.) Seconds of network: never on
+ * the audio worker. */
+static int fetch_cover(const std::string &engine, const std::string &url, unsigned short *cells) {
+    const std::string tmp = "/tmp/cratedigger_cover_" + std::to_string(getpid());
+    // the bundle's ffmpeg is static and cannot look up host names on the MPC: its Python fetches the picture (~0.2 s on a Live III)
+    static const char *const fetch =
+        "import sys,urllib.request\n"
+        "r=urllib.request.Request(sys.argv[1],headers={'User-Agent':'CrateDigger/2 (MPC plugin)'})\n"
+        "open(sys.argv[2],'wb').write(urllib.request.urlopen(r,timeout=8).read(4000000))\n";
+    const bool ok = run_engine({engine + "/bin/python3/bin/python3.11", "-I", "-c", fetch, url, tmp + ".img"})
+                 && run_engine({engine + "/bin/ffmpeg", "-nostdin", "-v", "error", "-i", tmp + ".img",
+                                "-vf", "crop='min(iw,ih)':'min(iw,ih)',scale=16:16:flags=area", "-frames:v", "1",
+                                "-f", "rawvideo", "-pix_fmt", "rgb24", "-y", tmp + ".rgb"});
+    unsigned char px[ART_CELLS * 3];
+    size_t got = 0;
+    if (ok)
+    {
+        FILE *f = std::fopen((tmp + ".rgb").c_str(), "rb");
+        got = f ? std::fread(px, 1, sizeof px, f) : 0;
+        if (f) std::fclose(f);
+    }
+    std::remove((tmp + ".img").c_str());
+    std::remove((tmp + ".rgb").c_str());
+    if (got != sizeof px) return -1;
+    for (int i = 0; i < ART_CELLS; ++i) cells[i] = art_index(px[i * 3], px[i * 3 + 1], px[i * 3 + 2]);
+    return pick_tint(px, ART_CELLS);
+}
+
+/* The picture to take the label colour from: the Discogs cover, or the YouTube thumbnail of the video. Under lock. */
+static std::string cover_url(Plugin *p, int idx) {
+    std::string art = core_get_idx(p, "search_result_art_%d", idx);
+    if (!art.empty()) return art;
+    const std::string url = core_get_idx(p, "search_result_url_%d", idx);
+    const size_t v = url.find("v=");
+    if (v == std::string::npos) return "";
+    std::string id = url.substr(v + 2, 11);
+    for (char c : id) if (!std::isalnum((unsigned char)c) && c != '-' && c != '_') return "";
+    return id.size() == 11 ? "https://i.ytimg.com/vi/" + id + "/mqdefault.jpg" : "";
+}
+
 /* Returns the folder holding bin/, or "" (error says why). Called on the worker thread: the copy can take seconds. */
 static std::string locate_engine(std::string &error, bool &legacy) {
     legacy = false;
@@ -528,11 +610,30 @@ mpc::PluginInfo makeInfo()
 }
 
 /* the sticky (lit) buttons: TRANSPORT SYNC, SOURCE x3, MUSIC ONLY. Their value is the state. */
-static bool is_sticky(int i) { return i == P_TRANSPORT_SYNC || (i >= P_SOURCE_DISCOGS && i <= P_MUSIC_BTN); }
+static bool is_sticky(int i) {
+    return i == P_TRANSPORT_SYNC || (i >= P_SOURCE_DISCOGS && i <= P_MUSIC_BTN) || i == P_SPEED_33 || i == P_SPEED_45;
+}
 static bool sticky_on(Engine *p, int i) {
     if (i == P_TRANSPORT_SYNC) return p->sync;
     if (i == P_MUSIC_BTN) return p->music;
+    if (i == P_SPEED_33 || i == P_SPEED_45) return p->speed45 == (i == P_SPEED_45);
     return p->source == i - P_SOURCE_DISCOGS;
+}
+
+/* The deck skin's record turns only on a 64-bit (Gen2) MPC; a dragged tonearm seeks once it has rested this long. */
+static const bool SPIN_RECORD = sizeof(void *) == 8;
+static const long long ARM_REST_MS = 350;
+
+/* the deck's playback rate: 33 or 45, times the pitch fader (+-8%, or +-16% with x2) */
+static float rate_of(const Engine *p) {
+    return (p->speed45 ? 1.35f : 1.0f) * (1.0f + p->pitch * (p->x2 ? 0.16f : 0.08f));
+}
+
+/* "m:ss" or "h:mm:ss" -> seconds (0 when it isn't a time) */
+static int clock_seconds(const std::string &t) {
+    int a = 0, b = 0, c = 0;
+    const int n = std::sscanf(t.c_str(), "%d:%d:%d", &a, &b, &c);
+    return n == 3 ? a * 3600 + b * 60 + c : n == 2 ? a * 60 + b : 0;
 }
 
 class CrateDigger : public mpc::Plugin
@@ -560,6 +661,13 @@ public:
             case T_FLOAT: addParam(mpc::floatParam(s.key, s.name, s.min, s.max, s.def, "", 2)); break;
             case T_READOUT: addParam(mpc::intParam(s.key, s.name, 0, 255, 0)); break;   // a counter: the text is the value text
             case T_LEVEL: addParam(mpc::intParam(s.key, s.name, 0, 10, 0)); break;      // output level meter: lamps lit, 0..10
+            case T_ANIM:
+            {   // moved by the plugin itself, many times a second or 256 at once: not for automation lanes
+                mpc::Param pr = mpc::intParam(s.key, s.name, 0, (int)s.max, 0);
+                pr.automatable = false;
+                addParam(pr);
+                break;
+            }
             default: addParam(mpc::intParam(s.key, s.name, 0, 1, 0)); break;             // triggers, option, slots
             }
         }
@@ -568,7 +676,11 @@ public:
         release_ = new std::atomic<bool>[(size_t)NPARAMS];
         last_ = new float[(size_t)NPARAMS];
         for (int i = 0; i < NPARAMS; ++i) { held_[i].store(false); release_[i].store(false); last_[i] = 0.0f; }
+        art_blank(e_.art);
         e_.api = move_plugin_init_v2(nullptr);
+        skinFile_ = mpc::pluginFolder() + "/cratedigger-skin.txt";   // the skin switch: one setting for every instance and project
+        e_.skin = readSkin();
+        store(P_SKIN, (float)e_.skin);
         worker_ = std::thread(&CrateDigger::workerMain, this);
     }
 
@@ -576,6 +688,7 @@ public:
     {
         quit_.store(true);
         if (worker_.joinable()) worker_.join();
+        if (coverThread_.joinable()) coverThread_.join();
         if (e_.core) e_.api->destroy_instance(e_.core);
         delete[] held_;
         delete[] release_;
@@ -597,22 +710,31 @@ public:
         float pkL = 0.0f, pkR = 0.0f;
         uint32_t r = e_.rpos.load(), avail = e_.wpos.load() - r;
         float *l = ctx.outputs[0], *rr = ctx.outputs[1];
-        for (int i = 0; i < n; ++i)
-        {
-            if ((uint32_t)i < avail)
+        const float rate = rate_.load(std::memory_order_relaxed);
+        uint32_t used;
+        if (rate == 1.0f)
+        {   // the record at its own speed: the frames as they are
+            frac_ = 0.0;
+            for (int i = 0; i < n; ++i)
             {
-                uint32_t k = (r + (uint32_t)i) & (RING - 1);
-                l[i] = e_.ring[k * 2] * (1.0f / 32768.0f);
-                rr[i] = e_.ring[k * 2 + 1] * (1.0f / 32768.0f);
-                pkL = std::max(pkL, std::fabs(l[i]));
-                pkR = std::max(pkR, std::fabs(rr[i]));
+                if ((uint32_t)i < avail)
+                {
+                    uint32_t k = (r + (uint32_t)i) & (RING - 1);
+                    l[i] = e_.ring[k * 2] * (1.0f / 32768.0f);
+                    rr[i] = e_.ring[k * 2 + 1] * (1.0f / 32768.0f);
+                    pkL = std::max(pkL, std::fabs(l[i]));
+                    pkR = std::max(pkR, std::fabs(rr[i]));
+                }
+                else l[i] = rr[i] = 0.0f;   // underrun: silence
             }
-            else l[i] = rr[i] = 0.0f;   // underrun: silence
+            used = (uint32_t)n < avail ? (uint32_t)n : avail;
         }
+        else   // varispeed, as a turntable (varispeed.h)
+            used = varispeed_read(e_.ring, RING - 1, r, avail, frac_, rate, l, rr, n, pkL, pkR);
         // the level meter: the block peak, falling away between blocks (read by the worker, which tells the host)
         peakL_.store(std::max(pkL, peakL_.load() * 0.96f));
         peakR_.store(std::max(pkR, peakR_.load() * 0.96f));
-        e_.rpos.store(r + ((uint32_t)n < avail ? (uint32_t)n : avail));
+        e_.rpos.store(r + used);
     }
 
     // ---- parameters: a host change (touch, jog, Q-Link) arrives here --------------------------------------------------------------------
@@ -636,6 +758,13 @@ public:
         case T_OPTION: if (index == P_KB && !loading_.load()) e_.kb = plain > 0.5f; return;   // the popup keyboard is not part of a saved state
         case T_FLOAT:
         {
+            if (index == P_PITCH)
+            {
+                e_.pitch = std::max(-1.0f, std::min(1.0f, plain));
+                rate_.store(rate_of(&e_));
+                dirty_.store(true);
+                return;
+            }
             char b[32];
             e_.gain = plain;
             std::snprintf(b, sizeof b, "%.3f", plain);
@@ -651,9 +780,23 @@ public:
             dirty_.store(true);
             return;
         }
+        case T_TOGGLE:
+            if (index == P_SKIN)
+            {   // global, not part of a project: a project load leaves it alone (the worker re-asserts it)
+                const int v = plain >= 0.5f ? 1 : 0;
+                if (!loading_.load() && v != e_.skin) { e_.skin = v; skinDirty_.store(true); }
+                return;
+            }
+            e_.x2 = plain >= 0.5f;   // P_PITCH_X2: part of the project, like the fader
+            rate_.store(rate_of(&e_));
+            dirty_.store(true);
+            return;
         case T_TRIGGER:
             if (is_sticky(index)) { stickyChanged(index, plain); return; }
             break;
+        case T_ANIM:
+            if (index == P_ARM && !loading_.load()) armMoved((int)std::lround(plain));
+            return;
         default: return;
         }
         // momentary buttons: a rising edge fires once; the worker drops the value back to 0 (the echo of that is not a press)
@@ -737,6 +880,12 @@ private:
     void stickyChanged(int i, float plain)
     {
         if (i >= P_SOURCE_DISCOGS && i < P_MUSIC_BTN) { if (plain > 0.5f) e_.source = i - P_SOURCE_DISCOGS; dirty_.store(true); return; }
+        if (i == P_SPEED_33 || i == P_SPEED_45)
+        {   // a radio pair, like SOURCE: the lit one is the speed
+            if (plain > 0.5f) { e_.speed45 = i == P_SPEED_45; rate_.store(rate_of(&e_)); }
+            dirty_.store(true);
+            return;
+        }
         const auto now = std::chrono::steady_clock::now();
         if (std::chrono::duration_cast<std::chrono::milliseconds>(now - pressAt_[i]).count() < TAP_GAP_MS) return;
         pressAt_[i] = now;
@@ -801,6 +950,7 @@ private:
         else if (i == P_STOP) core_set(p, "stop_step", "trigger");
         else if (i == P_REWIND_15) core_set(p, "rewind_15_step", "trigger");
         else if (i == P_FORWARD_15) core_set(p, "forward_15_step", "trigger");
+        else if (i == P_PITCH_RESET) { p->pitch = 0.0f; rate_.store(rate_of(p)); }
         dirty_.store(true);
     }
 
@@ -830,6 +980,18 @@ private:
         return n > 1 && R > 0 ? std::round((float)idx * (float)R / (float)(n - 1)) : 0.0f;
     }
 
+    // The tonearm moved: our own value coming back from the host, or the user dragging it (on the screen or a Q-Link). A drag holds the
+    // arm where it was let go and seeks there once it rests (animate). Under lock.
+    void armMoved(int v)
+    {
+        for (int k : armSent_) if (k == v) return;   // an echo of a value the worker sent
+        if (v == e_.arm && !armDrag_) return;
+        if (core_get(&e_, "stream_url").empty()) return;   // nothing on the deck: the worker puts the arm back on its rest
+        e_.arm = std::max(0, std::min(255, v));
+        armDrag_ = true;
+        armAt_ = nowMs();
+    }
+
     // The value the host should show for a parameter, from the plugin's own state. Under lock.
     float want(int i)
     {
@@ -837,7 +999,11 @@ private:
         {
         case T_STEPPER: return hostOf(i, stepper_index(&e_, i));
         case T_OPTION: return e_.kb ? 1.0f : 0.0f;
-        case T_FLOAT: return e_.gain;
+        case T_FLOAT: return i == P_PITCH ? e_.pitch : e_.gain;
+        case T_TOGGLE: return i == P_SKIN ? (float)e_.skin : (e_.x2 ? 1.0f : 0.0f);
+        case T_ANIM:
+            if (i >= P_ART_0) return (float)e_.art[i - P_ART_0];
+            return i == P_PLATTER ? std::floor(e_.platter) : i == P_ARM ? (float)e_.arm : (float)e_.tint;
         case T_SLOT: return current_result(&e_) == e_.page * SLOTS + (i - P_RESULT_1) ? 1.0f : 0.0f;
         case T_TRIGGER: return is_sticky(i) && sticky_on(&e_, i) ? 1.0f : 0.0f;
         case T_LEVEL:
@@ -870,8 +1036,95 @@ private:
     }
 
     // One worker pass (every ~50 ms): release buttons, keep the host in step with the state, ask it to re-read changed text.
+    // The deck skin's moving parts: the record turns while it plays (33 1/3 rpm = 200 degrees a second, times the rate), the tonearm
+    // follows the track (frame 0 at the lead-in, 31 at the end). And the global skin switch, shared through a file. Worker thread.
+    void animate()
+    {
+        const long long now = nowMs();
+        const float dt = lastAnim_ ? (float)(now - lastAnim_) * 0.001f : 0.0f;
+        lastAnim_ = now;
+        {
+            std::lock_guard<std::mutex> lk(e_.lock);
+            if (e_.core)
+            {
+                // the record turns on the 64-bit MPCs only: the redraw costs a Gen1 (armv7) more than it is worth
+                const bool spinning = SPIN_RECORD && !e_.hold && core_get(&e_, "stream_status") == "streaming";
+                if (spinning) e_.platter = std::fmod(e_.platter + 200.0f * rate_of(&e_) * std::min(dt, 0.25f), 360.0f);
+                const int c = current_result(&e_);
+                const int dur = c >= 0 ? clock_seconds(core_get_idx(&e_, "search_result_duration_%d", c)) : 0;
+                const int at = clock_seconds(core_get(&e_, "playback_time"));
+                const bool loaded = dur > 0 && !core_get(&e_, "stream_url").empty();
+                if (armDrag_ && loaded && now - armAt_ >= ARM_REST_MS)
+                {   // the arm was let go: drop the needle there, and keep it there until the track's clock catches up
+                    armDrag_ = false;
+                    seekTo_ = e_.arm * dur / 256;
+                    seekUntil_ = now + 4000;
+                    core_set(&e_, "seek_to_seconds", std::to_string(seekTo_).c_str());
+                    LOG("needle drop at %d / %d s\n", seekTo_, dur);
+                }
+                if (!loaded) { armDrag_ = false; seekUntil_ = 0; e_.arm = 0; }
+                else if (!armDrag_ && (now >= seekUntil_ || std::abs(at - seekTo_) <= 1)) { seekUntil_ = 0; e_.arm = std::min(255, at * 256 / dur); }
+                // a new record on the deck: its cover colours the label (on a thread of its own: seconds of network)
+                const std::string cover = c >= 0 ? cover_url(&e_, c) : std::string();
+                if (cover != coverFor_ && !coverBusy_.load())
+                {
+                    coverFor_ = cover;
+                    if (cover.empty()) { e_.tint = 0; art_blank(e_.art); }
+                    else
+                    {
+                        if (coverThread_.joinable()) coverThread_.join();
+                        coverBusy_.store(true);
+                        coverThread_ = std::thread([this, cover] {
+                            unsigned short cells[ART_CELLS];
+                            art_blank(cells);
+                            const int t = fetch_cover(engineDir_, cover, cells);
+                            {
+                                std::lock_guard<std::mutex> g(e_.lock);
+                                if (coverFor_ == cover)
+                                {
+                                    e_.tint = t >= 0 ? t : 0;
+                                    std::memcpy(e_.art, cells, sizeof cells);
+                                }
+                            }
+                            LOG("cover %s -> tint %d\n", cover.c_str(), t);
+                            coverBusy_.store(false);
+                        });
+                    }
+                }
+            }
+        }
+        int skin;
+        {
+            std::lock_guard<std::mutex> lk(e_.lock);
+            skin = e_.skin;
+        }
+        if (skinDirty_.exchange(false)) writeSkin(skin);
+        else if (++tick_ % 20 == 0)   // another instance switched it (about once a second)
+        {
+            const int s = readSkin();
+            std::lock_guard<std::mutex> lk(e_.lock);
+            e_.skin = s;
+        }
+    }
+
+    // ---- skin switch (global): "sampler" or "deck" in <plugin folder>/cratedigger-skin.txt --------------------------------------
+    int readSkin() const
+    {
+        std::ifstream f(skinFile_);
+        std::string w;
+        return (f >> w && w == "deck") ? 1 : 0;
+    }
+
+    void writeSkin(int v) const   // worker thread (.tmp + rename)
+    {
+        const std::string tmp = skinFile_ + ".tmp";
+        { std::ofstream f(tmp, std::ios::trunc); if (!f) return; f << (v ? "deck" : "sampler") << "\n"; }
+        std::rename(tmp.c_str(), skinFile_.c_str());
+    }
+
     void uiPass(bool force)
     {
+        animate();
         const long long pg = pendingAt_.load();
         if (pg && (force || nowMs() - pg >= 40))
         {
@@ -896,7 +1149,8 @@ private:
             {
                 if (PARAMS[i].type == T_TRIGGER && !is_sticky(i)) continue;
                 // the host's stored value follows the plugin's state (a lit button the host just switched off lights again)
-                if (PARAMS[i].type != T_READOUT && !(i == P_GENRE && pendingAt_.load()) && std::fabs(want(i) - get(i)) > 1e-4f) push.push_back(i);
+                if (PARAMS[i].type != T_READOUT && !(i == P_GENRE && pendingAt_.load()) && !(i == P_ARM && armDrag_)
+                    && std::fabs(want(i) - get(i)) > 1e-4f) push.push_back(i);
                 if (PARAMS[i].type != T_TRIGGER)
                 {
                     std::string t = display(&e_, i);
@@ -914,6 +1168,7 @@ private:
             float v;
             if (PARAMS[i].type == T_READOUT) { counter_[i] = (counter_[i] + 1) & 255; v = (float)counter_[i]; }
             else { std::lock_guard<std::mutex> lk(e_.lock); v = want(i); }
+            if (i == P_ARM) { std::lock_guard<std::mutex> lk(e_.lock); armSent_[armSentN_++ % 4] = (int)v; }
             store(i, v);
             notifyHostParameterChanged(i);
         }
@@ -932,6 +1187,7 @@ private:
             if (dir.empty()) e_.engine_error = err;
             else
             {
+                engineDir_ = dir;
                 e_.channels_path = (legacy ? dir : mpc::pluginFolder()) + "/channels.txt";
                 e_.core = e_.api->create_instance(dir.c_str(), nullptr);
                 if (!e_.core) e_.engine_error = "ENGINE FAILED TO START";
@@ -972,8 +1228,22 @@ private:
     std::atomic<bool> quit_{false}, resync_{false}, dirty_{false}, sync_{false};
     std::atomic<long long> pendingAt_{0};
     std::atomic<float> peakL_{0.0f}, peakR_{0.0f};
+    std::atomic<float> rate_{1.0f};      // the deck's playback rate (rate_of), read by process()
+    double frac_ = 0.0;                  // process() only: where between two ring frames the varispeed read is
+    std::string skinFile_;
+    std::atomic<bool> skinDirty_{false};
+    long long lastAnim_ = 0;
+    std::string engineDir_, coverFor_;   // the engine bundle (for ffmpeg); the cover the label colour was taken from
+    std::thread coverThread_;
+    std::atomic<bool> coverBusy_{false};
+    unsigned tick_ = 0;
     int pendingGenre_ = 0;
     int stepMax_[NPARAMS] = {0};         // each stepper's top index as the host knows it (stepTarget)
+    bool armDrag_ = false;               // the tonearm is being dragged (armMoved): the worker leaves it where the user put it
+    long long armAt_ = 0, seekUntil_ = 0;
+    int seekTo_ = 0;
+    int armSent_[4] = {-1, -1, -1, -1};  // the arm values the worker last told the host (their echoes are not drags)
+    unsigned armSentN_ = 0;
     std::atomic<bool> *held_ = nullptr, *release_ = nullptr;
     float *last_ = nullptr;
     std::vector<std::string> shown_;

@@ -6,9 +6,12 @@
 #include <string.h>
 #include <math.h>
 #include <string>
+#include <algorithm>
 #include <unistd.h>
 #include "cratedig_tables.h"
 #include "params_gen.h"
+#include "varispeed.h"
+#include "label_tints.h"
 
 typedef struct AEffect AEffect;
 typedef intptr_t (*cb)(AEffect *, int32_t, int32_t, intptr_t, void *, float);
@@ -66,7 +69,7 @@ int main(void) {
     for (int r = 0; r < N_CRATEDIG_REGIONS; r++) g_maxCountry = std::max(g_maxCountry, N_COUNTRIES_BY_REGION[r]);
     AEffect *a = VSTPluginMain(host), *b = VSTPluginMain(host);
     CHECK(a && b && a != b, "two instances");
-    CHECK(a->npar == NPARAMS && NPARAMS == 106, "param count %d", a->npar);
+    CHECK(a->npar == NPARAMS && NPARAMS == 371, "param count %d", a->npar);
     char name[64];
     a->d(a, 8, P_GAIN, 0, name, 0);
     CHECK(!strcmp(name, "Gain"), "name of gain is '%s'", name);
@@ -200,6 +203,91 @@ int main(void) {
     CHECK(fabsf(c->getP(c, P_GAIN) - 1.5f / 2.0f) < 0.01f || fabsf(c->getP(c, P_GAIN) - 1.5f) < 0.01f, "legacy gain %.3f", c->getP(c, P_GAIN));
     CHECK(text(c, P_MIN_LEN) == "1 MIN" && text(c, P_MAX_LEN) == "6 MIN", "legacy lengths '%s' '%s'", text(c, P_MIN_LEN).c_str(), text(c, P_MAX_LEN).c_str());
     CHECK(c->d(c, 24, 0, 5, (void *)"junk", 0) == 0, "a foreign chunk was accepted");
+
+    /* the deck: the pitch fader (-1..1 = -8..+8 %), x2 doubles the range, RESET returns it to 0; 33 / 45 are a lit radio pair */
+    a->setP(a, P_PITCH, 0.75f); settle(120);
+    CHECK(text(a, P_PITCH) == "+4.0%", "pitch at 3/4 reads '%s'", text(a, P_PITCH).c_str());
+    a->setP(a, P_PITCH_X2, 1.0f); settle(120);
+    CHECK(text(a, P_PITCH) == "+8.0%" && a->getP(a, P_PITCH_X2) > 0.5f, "x2: pitch reads '%s'", text(a, P_PITCH).c_str());
+    a->setP(a, P_PITCH_RESET, 1.0f); settle(200);
+    CHECK(text(a, P_PITCH) == "+0.0%" && fabsf(a->getP(a, P_PITCH) - 0.5f) < 0.01f, "RESET: pitch '%s' at %.3f", text(a, P_PITCH).c_str(),
+          a->getP(a, P_PITCH));
+    CHECK(a->getP(a, P_PITCH_RESET) < 0.01f, "RESET did not spring back");
+    CHECK(a->getP(a, P_SPEED_33) > 0.5f && a->getP(a, P_SPEED_45) < 0.5f, "33 is not lit at start");
+    a->setP(a, P_SPEED_45, 1.0f); settle(200);
+    CHECK(a->getP(a, P_SPEED_45) > 0.5f && a->getP(a, P_SPEED_33) < 0.5f, "45 did not take over from 33");
+    a->setP(a, P_SPEED_33, 1.0f); settle(200);
+    CHECK(a->getP(a, P_SPEED_33) > 0.5f && a->getP(a, P_SPEED_45) < 0.5f, "33 did not come back");
+    a->setP(a, P_PITCH_X2, 0.0f); settle(80);
+    /* the deck's pitch, range and speed are part of the project */
+    {
+        a->setP(a, P_PITCH, 0.75f); a->setP(a, P_PITCH_X2, 1.0f); a->setP(a, P_SPEED_45, 1.0f); settle(250);
+        void *dk = nullptr;
+        const intptr_t dlen = a->d(a, 23, 0, 0, &dk, 0);
+        std::string deck((const char *)dk, (size_t)dlen);
+        AEffect *d = VSTPluginMain(host);
+        settle(200);
+        d->d(d, 24, 0, dlen, (void *)deck.data(), 0);
+        settle(300);
+        CHECK(text(d, P_PITCH) == "+8.0%" && d->getP(d, P_PITCH_X2) > 0.5f, "pitch after load '%s'", text(d, P_PITCH).c_str());
+        CHECK(d->getP(d, P_SPEED_45) > 0.5f && d->getP(d, P_SPEED_33) < 0.5f, "45 after load: 45 %.1f, 33 %.1f", d->getP(d, P_SPEED_45),
+              d->getP(d, P_SPEED_33));
+        d->d(d, 1, 0, 0, nullptr, 0);   /* effClose */
+        a->setP(a, P_PITCH_RESET, 1.0f); a->setP(a, P_PITCH_X2, 0.0f); a->setP(a, P_SPEED_33, 1.0f); settle(250);
+    }
+    {
+        const int before = a->getP(a, P_SKIN) > 0.5f;
+        a->setP(a, P_SKIN, 1.0f); settle(200);
+        CHECK(text(a, P_SKIN) == "DECK", "skin reads '%s'", text(a, P_SKIN).c_str());
+        a->setP(a, P_SKIN, (float)before); settle(200);
+    }
+
+    /* the varispeed read itself: a 441 Hz sine (100 frames a period) played 8 % fast is ~476 Hz, smooth across blocks, and uses
+       8 % more frames; with too little data it plays silence and does not run past the data */
+    {
+        static int16_t ring[4096 * 2];
+        for (int i = 0; i < 4096; ++i) ring[i * 2] = ring[i * 2 + 1] = (int16_t)(16000.0 * sin(2.0 * M_PI * i / 100.0));
+        double frac = 0.0;
+        uint32_t r = 1, usedAll = 0;
+        float outL[128], outR[128], prev = 0.0f, worst = 0.0f, pkL = 0.0f, pkR = 0.0f;
+        int crossings = 0, frames = 0;
+        for (int blk = 0; blk < 20; ++blk)
+        {
+            uint32_t used = varispeed_read(ring, 4095, r, 4000 - r, frac, 1.08f, outL, outR, 128, pkL, pkR);
+            for (int i = 0; i < 128; ++i)
+            {
+                if (frames && prev < 0.0f && outL[i] >= 0.0f) ++crossings;
+                if (frames) worst = std::max(worst, fabsf(outL[i] - prev));
+                prev = outL[i];
+                ++frames;
+            }
+            r += used;
+            usedAll += used;
+        }
+        const double want = 2560 * 1.08;
+        CHECK(fabs(usedAll - want) < 2.0, "8%% fast used %u frames (want ~%.0f)", usedAll, want);
+        CHECK(abs(crossings - (int)(2560 * 1.08 / 100.0)) <= 1, "8%% fast: %d periods in 2560 frames", crossings);
+        CHECK(worst < 0.07f && pkL > 0.45f, "not smooth: biggest step %.3f, peak %.2f", worst, pkL);
+        frac = 0.0;
+        uint32_t used = varispeed_read(ring, 4095, 0, 40, frac, 1.35f, outL, outR, 128, pkL, pkR);
+        CHECK(used <= 40 && outL[127] == 0.0f, "underrun: used %u, last %.3f", used, outL[127]);
+    }
+
+    /* the plugin's own moving parts (platter, arm, label, the cover's cells) are not offered for automation; the deck's controls are */
+    CHECK(a->d(a, 26, P_ART_0, 0, nullptr, 0) == 0 && a->d(a, 26, P_ART_255, 0, nullptr, 0) == 0 && a->d(a, 26, P_PLATTER, 0, nullptr, 0) == 0,
+          "an animation parameter can be automated");
+    CHECK(a->d(a, 26, P_PITCH, 0, nullptr, 0) == 1, "pitch cannot be automated");
+    CHECK(a->getP(a, P_ART_0) * 511.0f < 0.5f, "a blank label cell is %.1f, not black (0)", a->getP(a, P_ART_0) * 511.0f);
+
+    /* the label colour: a plain cover picks its own colour; a muddy cover with a strong blue patch picks the blue, not the mud */
+    {
+        unsigned char px[64 * 3];
+        for (int i = 0; i < 64; ++i) { px[i * 3] = 200; px[i * 3 + 1] = 42; px[i * 3 + 2] = 30; }
+        CHECK(pick_tint(px, 64) == 5, "a red cover gave tint %d", pick_tint(px, 64));
+        for (int i = 0; i < 64; ++i) { px[i * 3] = 120; px[i * 3 + 1] = 112; px[i * 3 + 2] = 100; }
+        for (int i = 0; i < 20; ++i) { px[i * 3] = 40; px[i * 3 + 1] = 80; px[i * 3 + 2] = 176; }
+        CHECK(pick_tint(px, 64) == 13, "a grey cover with blue gave tint %d", pick_tint(px, 64));
+    }
 
     CHECK(displayUpdates > 0, "the host was never asked to re-read text");
     for (AEffect *e : {a, b, c}) e->d(e, 1, 0, 0, nullptr, 0);   /* effClose */

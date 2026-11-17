@@ -303,8 +303,12 @@ def build_play():
     p.key("page_next", "PAGE ►", "cream", 1000, 540, 108, 62, size=14)
     p.key("search", "SEARCH", "red", 1130, 540, 108, 62, size=14)
     add_master(p)
+    skin_key(p)
+    # the Q-Links are the tab's, so both looks share them: first the deck's pitch and gain, the results page and the tonearm (turn it to
+    # seek), then the transport. The frames are drawn for this look only (the deck hides them).
+    p.qgroup((700, 6, 1240, 614), ["pitch", "gain", "page", "arm"])
     p.qgroup((40, 456, 780, 614), ["rewind_15", "play_pause", "stop", "forward_15"])
-    p.qgroup((796, 456, 1240, 614), ["transport_sync", "search", "page", "gain"])
+    p.qgroup((40, 82, 1240, 440), ["transport_sync", "search"])
     return p, c
 
 
@@ -341,6 +345,7 @@ def build_filters():
     p.key("search", "SEARCH", "red", 1110, 520, 190, 62, size=16)
     c.t((1110, 566), "SEARCH DISCOGS", 9, INK)
     add_master(p)
+    skin_key(p)
     p.qgroup((40, 420, 830, 610), ["genre", "style", "decade", "region"])
     p.qgroup((806, 424, 1240, 610), ["country", "search"])
     return p, c
@@ -409,6 +414,7 @@ def build_find():
     p.key("keys", "KEYBOARD", "dark", 1172, 440, 112, 84, size=13)
     p.key("find_search", "SEARCH", "red", 1172, 556, 112, 84, size=15)
     add_master(p)
+    skin_key(p)
     p.qgroup((316, 356, 1240, 530), ["source", "channel", "min_len", "max_len"])
     p.qgroup((40, 540, 1240, 616), ["music", "keys", "find_search", "gain"])
     add_keyboard(p)
@@ -447,6 +453,11 @@ def add_keyboard(p):
 
 
 KB_FIELD = (40, 38, 1240, 120)
+
+
+def skin_key(p):
+    """The SKIN key: switches every Crate Digger on the MPC to the deck look (the deck's own SKIN key switches back)."""
+    p.key("skin", "DECK LOOK", "dark", 616, 42, 104, 40, size=11, toggle=True, lamp="amber")
 
 
 # ---- Q-Links -----------------------------------------------------------------------------------------------------------------------------------
@@ -534,12 +545,27 @@ def main():
         p, c = build()
         pages.append(p)
         tabs.append(p.tab(save(c.im.resize((1280, 628), Image.LANCZOS).convert("RGB"), "bg_%s.png" % p.name.lower())))
+    if "--preview" in sys.argv:
+        preview(pages, tabs)          # the sampler look, before the deck look joins it
+    # the deck look (tools/skin_deck.py): every tab twice, the `skin` parameter shows one set (one TUI.json, no files to swap; as Xenia)
+    import skin_deck
+    skin = LOCK.index("skin")
+    deck = skin_deck.build(sys.modules[__name__], pages)
+    for t, (dp, dbg) in zip(tabs, deck):
+        merged = []
+        for which, tab in ((0, t), (1, dp.tab(dbg))):
+            for e in tab["componentDefinition"]["componentsData"]:
+                b = e["bounds"]
+                b["version"] = 2
+                b.setdefault("additionalInvalidatingHandles", []).append("IndexedEnabling/%d/2/Parameter %d" % (which, skin))
+                merged.append(e)
+        t["componentDefinition"]["componentsData"] = merged
     tui = {"pageData": {"version": 1, "componentDefinitions": {"version": 2, "importFiles": [], "localComponentDefinitions": overlay_defs() + DEFS},
                         "replacementStrings": [], "info": {"version": 1, "type": "CompleteDescription"}, "tabs": tabs}}
     open(os.path.join(OUT, "TUI.json"), "w").write(dump(tui) + "\n")
     open(os.path.join(OUT, "Q-Links.json"), "w").write(dump(qlinks_for(pages)) + "\n")
     if "--preview" in sys.argv:
-        preview(pages, tabs)
+        skin_deck.preview(sys.modules[__name__], deck)
     print("wrote", OUT, "-", len(tabs), "tabs,", len(os.listdir(OUT)), "files,", len(DEFS), "components")
 
 

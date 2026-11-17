@@ -1,5 +1,5 @@
 {
- "_comment": "VST parameter table for the Crate Digger plugin. ORDER IS THE VST INDEX: append only, never reorder (projects and the skin bind to indices). types: stepper (index into a dynamic list; value text = item), trigger (fires on >0.5, springs back), float, readout (display-only text), slot (result row: value text = title, tap = play, value 1 = playing).",
+ "_comment": "VST parameter table for the Crate Digger plugin. ORDER IS THE VST INDEX: append only, never reorder (projects and the skin bind to indices). types: stepper (index into a dynamic list; value text = item), trigger (fires on >0.5, springs back), float, readout (display-only text), slot (result row: value text = title, tap = play, value 1 = playing), level (meter lamps), toggle (value = on/off state), anim (an integer 0..max the plugin moves, not automatable: platter angle, tonearm frame, label tint, the 16 x 16 cover picture's cells as 8-level RGB 0..511).",
  "name": "Crate Digger",
  "vendor": "sd88me",
  "uid": "CrDg",
@@ -541,6 +541,1593 @@
    "key": "play_state",
    "name": "Play State",
    "type": "level"
+  },
+  {
+   "key": "pitch",
+   "name": "Pitch",
+   "type": "float",
+   "min": -1,
+   "max": 1,
+   "default": 0
+  },
+  {
+   "key": "pitch_x2",
+   "name": "Pitch Range x2",
+   "type": "toggle"
+  },
+  {
+   "key": "speed_33",
+   "name": "Speed 33",
+   "type": "trigger"
+  },
+  {
+   "key": "speed_45",
+   "name": "Speed 45",
+   "type": "trigger"
+  },
+  {
+   "key": "pitch_reset",
+   "name": "Pitch Reset",
+   "type": "trigger"
+  },
+  {
+   "key": "skin",
+   "name": "Skin",
+   "type": "toggle"
+  },
+  {
+   "key": "platter",
+   "name": "Platter",
+   "type": "anim",
+   "max": 359
+  },
+  {
+   "key": "arm",
+   "name": "Tonearm",
+   "type": "anim",
+   "max": 255
+  },
+  {
+   "key": "label_tint",
+   "name": "Label Tint",
+   "type": "anim",
+   "max": 23
+  },
+  {
+   "key": "art_0",
+   "name": "Cover 0",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_1",
+   "name": "Cover 1",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_2",
+   "name": "Cover 2",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_3",
+   "name": "Cover 3",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_4",
+   "name": "Cover 4",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_5",
+   "name": "Cover 5",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_6",
+   "name": "Cover 6",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_7",
+   "name": "Cover 7",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_8",
+   "name": "Cover 8",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_9",
+   "name": "Cover 9",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_10",
+   "name": "Cover 10",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_11",
+   "name": "Cover 11",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_12",
+   "name": "Cover 12",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_13",
+   "name": "Cover 13",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_14",
+   "name": "Cover 14",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_15",
+   "name": "Cover 15",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_16",
+   "name": "Cover 16",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_17",
+   "name": "Cover 17",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_18",
+   "name": "Cover 18",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_19",
+   "name": "Cover 19",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_20",
+   "name": "Cover 20",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_21",
+   "name": "Cover 21",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_22",
+   "name": "Cover 22",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_23",
+   "name": "Cover 23",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_24",
+   "name": "Cover 24",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_25",
+   "name": "Cover 25",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_26",
+   "name": "Cover 26",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_27",
+   "name": "Cover 27",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_28",
+   "name": "Cover 28",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_29",
+   "name": "Cover 29",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_30",
+   "name": "Cover 30",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_31",
+   "name": "Cover 31",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_32",
+   "name": "Cover 32",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_33",
+   "name": "Cover 33",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_34",
+   "name": "Cover 34",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_35",
+   "name": "Cover 35",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_36",
+   "name": "Cover 36",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_37",
+   "name": "Cover 37",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_38",
+   "name": "Cover 38",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_39",
+   "name": "Cover 39",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_40",
+   "name": "Cover 40",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_41",
+   "name": "Cover 41",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_42",
+   "name": "Cover 42",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_43",
+   "name": "Cover 43",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_44",
+   "name": "Cover 44",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_45",
+   "name": "Cover 45",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_46",
+   "name": "Cover 46",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_47",
+   "name": "Cover 47",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_48",
+   "name": "Cover 48",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_49",
+   "name": "Cover 49",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_50",
+   "name": "Cover 50",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_51",
+   "name": "Cover 51",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_52",
+   "name": "Cover 52",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_53",
+   "name": "Cover 53",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_54",
+   "name": "Cover 54",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_55",
+   "name": "Cover 55",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_56",
+   "name": "Cover 56",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_57",
+   "name": "Cover 57",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_58",
+   "name": "Cover 58",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_59",
+   "name": "Cover 59",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_60",
+   "name": "Cover 60",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_61",
+   "name": "Cover 61",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_62",
+   "name": "Cover 62",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_63",
+   "name": "Cover 63",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_64",
+   "name": "Cover 64",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_65",
+   "name": "Cover 65",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_66",
+   "name": "Cover 66",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_67",
+   "name": "Cover 67",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_68",
+   "name": "Cover 68",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_69",
+   "name": "Cover 69",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_70",
+   "name": "Cover 70",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_71",
+   "name": "Cover 71",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_72",
+   "name": "Cover 72",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_73",
+   "name": "Cover 73",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_74",
+   "name": "Cover 74",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_75",
+   "name": "Cover 75",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_76",
+   "name": "Cover 76",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_77",
+   "name": "Cover 77",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_78",
+   "name": "Cover 78",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_79",
+   "name": "Cover 79",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_80",
+   "name": "Cover 80",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_81",
+   "name": "Cover 81",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_82",
+   "name": "Cover 82",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_83",
+   "name": "Cover 83",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_84",
+   "name": "Cover 84",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_85",
+   "name": "Cover 85",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_86",
+   "name": "Cover 86",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_87",
+   "name": "Cover 87",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_88",
+   "name": "Cover 88",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_89",
+   "name": "Cover 89",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_90",
+   "name": "Cover 90",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_91",
+   "name": "Cover 91",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_92",
+   "name": "Cover 92",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_93",
+   "name": "Cover 93",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_94",
+   "name": "Cover 94",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_95",
+   "name": "Cover 95",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_96",
+   "name": "Cover 96",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_97",
+   "name": "Cover 97",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_98",
+   "name": "Cover 98",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_99",
+   "name": "Cover 99",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_100",
+   "name": "Cover 100",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_101",
+   "name": "Cover 101",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_102",
+   "name": "Cover 102",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_103",
+   "name": "Cover 103",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_104",
+   "name": "Cover 104",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_105",
+   "name": "Cover 105",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_106",
+   "name": "Cover 106",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_107",
+   "name": "Cover 107",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_108",
+   "name": "Cover 108",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_109",
+   "name": "Cover 109",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_110",
+   "name": "Cover 110",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_111",
+   "name": "Cover 111",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_112",
+   "name": "Cover 112",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_113",
+   "name": "Cover 113",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_114",
+   "name": "Cover 114",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_115",
+   "name": "Cover 115",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_116",
+   "name": "Cover 116",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_117",
+   "name": "Cover 117",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_118",
+   "name": "Cover 118",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_119",
+   "name": "Cover 119",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_120",
+   "name": "Cover 120",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_121",
+   "name": "Cover 121",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_122",
+   "name": "Cover 122",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_123",
+   "name": "Cover 123",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_124",
+   "name": "Cover 124",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_125",
+   "name": "Cover 125",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_126",
+   "name": "Cover 126",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_127",
+   "name": "Cover 127",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_128",
+   "name": "Cover 128",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_129",
+   "name": "Cover 129",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_130",
+   "name": "Cover 130",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_131",
+   "name": "Cover 131",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_132",
+   "name": "Cover 132",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_133",
+   "name": "Cover 133",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_134",
+   "name": "Cover 134",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_135",
+   "name": "Cover 135",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_136",
+   "name": "Cover 136",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_137",
+   "name": "Cover 137",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_138",
+   "name": "Cover 138",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_139",
+   "name": "Cover 139",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_140",
+   "name": "Cover 140",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_141",
+   "name": "Cover 141",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_142",
+   "name": "Cover 142",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_143",
+   "name": "Cover 143",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_144",
+   "name": "Cover 144",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_145",
+   "name": "Cover 145",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_146",
+   "name": "Cover 146",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_147",
+   "name": "Cover 147",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_148",
+   "name": "Cover 148",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_149",
+   "name": "Cover 149",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_150",
+   "name": "Cover 150",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_151",
+   "name": "Cover 151",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_152",
+   "name": "Cover 152",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_153",
+   "name": "Cover 153",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_154",
+   "name": "Cover 154",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_155",
+   "name": "Cover 155",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_156",
+   "name": "Cover 156",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_157",
+   "name": "Cover 157",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_158",
+   "name": "Cover 158",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_159",
+   "name": "Cover 159",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_160",
+   "name": "Cover 160",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_161",
+   "name": "Cover 161",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_162",
+   "name": "Cover 162",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_163",
+   "name": "Cover 163",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_164",
+   "name": "Cover 164",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_165",
+   "name": "Cover 165",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_166",
+   "name": "Cover 166",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_167",
+   "name": "Cover 167",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_168",
+   "name": "Cover 168",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_169",
+   "name": "Cover 169",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_170",
+   "name": "Cover 170",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_171",
+   "name": "Cover 171",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_172",
+   "name": "Cover 172",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_173",
+   "name": "Cover 173",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_174",
+   "name": "Cover 174",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_175",
+   "name": "Cover 175",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_176",
+   "name": "Cover 176",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_177",
+   "name": "Cover 177",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_178",
+   "name": "Cover 178",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_179",
+   "name": "Cover 179",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_180",
+   "name": "Cover 180",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_181",
+   "name": "Cover 181",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_182",
+   "name": "Cover 182",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_183",
+   "name": "Cover 183",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_184",
+   "name": "Cover 184",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_185",
+   "name": "Cover 185",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_186",
+   "name": "Cover 186",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_187",
+   "name": "Cover 187",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_188",
+   "name": "Cover 188",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_189",
+   "name": "Cover 189",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_190",
+   "name": "Cover 190",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_191",
+   "name": "Cover 191",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_192",
+   "name": "Cover 192",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_193",
+   "name": "Cover 193",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_194",
+   "name": "Cover 194",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_195",
+   "name": "Cover 195",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_196",
+   "name": "Cover 196",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_197",
+   "name": "Cover 197",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_198",
+   "name": "Cover 198",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_199",
+   "name": "Cover 199",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_200",
+   "name": "Cover 200",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_201",
+   "name": "Cover 201",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_202",
+   "name": "Cover 202",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_203",
+   "name": "Cover 203",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_204",
+   "name": "Cover 204",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_205",
+   "name": "Cover 205",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_206",
+   "name": "Cover 206",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_207",
+   "name": "Cover 207",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_208",
+   "name": "Cover 208",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_209",
+   "name": "Cover 209",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_210",
+   "name": "Cover 210",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_211",
+   "name": "Cover 211",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_212",
+   "name": "Cover 212",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_213",
+   "name": "Cover 213",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_214",
+   "name": "Cover 214",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_215",
+   "name": "Cover 215",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_216",
+   "name": "Cover 216",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_217",
+   "name": "Cover 217",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_218",
+   "name": "Cover 218",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_219",
+   "name": "Cover 219",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_220",
+   "name": "Cover 220",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_221",
+   "name": "Cover 221",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_222",
+   "name": "Cover 222",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_223",
+   "name": "Cover 223",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_224",
+   "name": "Cover 224",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_225",
+   "name": "Cover 225",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_226",
+   "name": "Cover 226",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_227",
+   "name": "Cover 227",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_228",
+   "name": "Cover 228",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_229",
+   "name": "Cover 229",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_230",
+   "name": "Cover 230",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_231",
+   "name": "Cover 231",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_232",
+   "name": "Cover 232",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_233",
+   "name": "Cover 233",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_234",
+   "name": "Cover 234",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_235",
+   "name": "Cover 235",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_236",
+   "name": "Cover 236",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_237",
+   "name": "Cover 237",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_238",
+   "name": "Cover 238",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_239",
+   "name": "Cover 239",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_240",
+   "name": "Cover 240",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_241",
+   "name": "Cover 241",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_242",
+   "name": "Cover 242",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_243",
+   "name": "Cover 243",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_244",
+   "name": "Cover 244",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_245",
+   "name": "Cover 245",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_246",
+   "name": "Cover 246",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_247",
+   "name": "Cover 247",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_248",
+   "name": "Cover 248",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_249",
+   "name": "Cover 249",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_250",
+   "name": "Cover 250",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_251",
+   "name": "Cover 251",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_252",
+   "name": "Cover 252",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_253",
+   "name": "Cover 253",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_254",
+   "name": "Cover 254",
+   "type": "anim",
+   "max": 511
+  },
+  {
+   "key": "art_255",
+   "name": "Cover 255",
+   "type": "anim",
+   "max": 511
   }
  ]
 }

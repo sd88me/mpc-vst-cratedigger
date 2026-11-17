@@ -26,6 +26,24 @@ a GAIN fader and a stereo level meter. Everything is reachable from the Q-Links.
 
 ![FILTERS](docs/screenshots/filters.png)
 
+## Deck look
+A second look, switched with **DECK LOOK** (top of every sampler page; on the deck it is on FIND). It applies to every Crate Digger on the MPC
+and stays until you switch back.
+
+![Deck: PLAY](docs/screenshots/deck-play.png)
+
+- **A turntable.** The record's label is a display (status, what is playing, the time) with the cover shown as dots behind its glass.
+  The record turns while it plays (64-bit MPCs; on 32-bit ones it stays still to save CPU).
+- **The tonearm follows the track; drag it to move.** Drag it up towards the label to go forward, down to go back: the needle drops where you let go.
+- **A real pitch fader** (+-8 %, RESET) and **33 / 45**: the track plays faster or slower, pitch and tempo together, as a turntable does.
+- **The crate** holds the results as sleeves, with PAGE tabs; an amp in front of it has the VU meters, GAIN, the search status and SEARCH.
+- **FILTERS and FIND** are consoles that match the amp: a fader with up / down keys for each filter, the source keys and the length faders.
+- **Q-Links on PLAY:** pitch, gain, the results page and the tonearm (turn it to move through the track), then the transport. The deck draws no
+  Q-Link frame.
+
+![Deck: FILTERS](docs/screenshots/deck-filters.png)
+![Deck: FIND](docs/screenshots/deck-find.png)
+
 ## Requirements
 - An MPC standalone device with a network connection (search and streaming happen on the device).
   - **64-bit MPCs (MPC Live III and other aarch64 units):** use the `aarch64` package.
