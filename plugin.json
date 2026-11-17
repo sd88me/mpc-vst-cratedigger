@@ -5,7 +5,7 @@
   "kind": "instrument",
   "numInputs": 0,
   "numOutputs": 2,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "category": "Synth",
   "description": "Dig for records on Discogs and play them from YouTube into an MPC track.",
   "author": "sd88me",

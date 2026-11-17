@@ -3,7 +3,7 @@
 # shipped (a 32-bit one and a 64-bit one):
 #   build/sdk/armv7/"sd88me - VST - Crate Digger"/    Force, MPC Live / One / X / Key (glibc 2.31)
 #   build/sdk/aarch64/"sd88me - VST - Crate Digger"/  MPC Live III and other 64-bit units
-# The engine bundle (yt-dlp, python, ffmpeg, the daemon) goes in Content/engine/. It is taken from build/engine-<cpu>/, which this script
+# The engine bundle (yt-dlp, python, ffmpeg) goes in Content/engine/, with the daemon from src/bin/. It is taken from build/engine-<cpu>/, which this script
 # unpacks from the last release zip (ENGINE_RELEASE, default cratedigger-vst-v1.3.0) the first time; rebuild the bundle itself with
 # vst/release_build.sh.
 #   ./build-sdk.sh            gen params, build both CPUs, assemble the folders (plugin.json, version.xml, Plugin Skins when skins/ exists)
@@ -44,6 +44,7 @@ build() {   # <cpu> <docker platform> <image> <base image> <zip suffix>
     -v "$PWD":/b -v "$SDK":/sdk:ro -w /b "$3" scripts/compile.sh
   engine "$cpu" "$5"
   cp -a "build/engine-$cpu" "$folder/Content/engine"
+  cp src/bin/yt_dlp_daemon.py "$folder/Content/engine/bin/"   # the daemon is source, not part of the cached bundle
   python3 - "$NAME" "$UIDS" "$folder" "$so" "$cpu" <<'PY'
 import json, sys
 name, uid, folder, so, cpu = sys.argv[1:]

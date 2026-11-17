@@ -1,12 +1,23 @@
 #!/usr/bin/env python3
+import concurrent.futures
+import http.client
 import http.cookiejar
 import json
 import os
+import random
 import re
 import sys
+import tempfile
+import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+try:
+    import gzip as _gzip          # Discogs pages are ~5x smaller gzipped; skipped if this Python has no zlib
+except Exception:
+    _gzip = None
 
 
 def clean_field(value: object) -> str:
@@ -217,7 +228,8 @@ def search_request_ytdlp(yt_dlp_mod, provider: str, limit_text: str, query: str)
     write_fields("SEARCH_END", str(count))
 
 
-def resolve_request_ytdlp(yt_dlp_mod, provider: str, source_url: str) -> None:
+def ytdlp_resolve_fields(yt_dlp_mod, provider: str, source_url: str) -> tuple:
+    """(media_url, user_agent, referer, title) of a source URL; raises with the reason when there is none."""
     ensure_ytdlp(yt_dlp_mod)
 
     with yt_dlp_mod.YoutubeDL(create_ytdlp_resolve_opts(provider)) as ydl:
@@ -229,8 +241,7 @@ def resolve_request_ytdlp(yt_dlp_mod, provider: str, source_url: str) -> None:
             data = first
 
     if not isinstance(data, dict):
-        write_fields("ERROR", "resolve returned invalid payload")
-        return
+        raise RuntimeError("resolve returned invalid payload")
 
     media_url = data.get("url") or ""
     if not media_url:
@@ -245,8 +256,7 @@ def resolve_request_ytdlp(yt_dlp_mod, provider: str, source_url: str) -> None:
                     break
 
     if not media_url:
-        write_fields("ERROR", "resolve returned empty media url")
-        return
+        raise RuntimeError("resolve returned empty media url")
 
     headers = data.get("http_headers") or {}
     user_agent = ""
@@ -255,7 +265,94 @@ def resolve_request_ytdlp(yt_dlp_mod, provider: str, source_url: str) -> None:
         user_agent = headers.get("User-Agent") or ""
         referer = headers.get("Referer") or ""
     title = clean_field(data.get("title") or "")
-    write_fields("RESOLVE_OK", media_url, user_agent, referer, title)
+    return (media_url, user_agent, referer, title)
+
+
+class Resolver:
+    """Stream URLs looked up before they are asked for. PREPARE names the rows the user is likely to play next (the plugin sends
+    the few after the one playing, and the first ones of a new results list); one background thread resolves them in order,
+    and RESOLVE answers from what it found, or waits for the lookup it is on, instead of running yt-dlp while the user waits.
+    YouTube's media URLs expire after some hours, so an answer is kept for 30 minutes. Only a few rows are prepared at a time:
+    YouTube starts refusing a device that asks for too much."""
+    TTL = 1800
+    MAX_AHEAD = 4
+    MAX_KEPT = 60
+    WAIT = 9.0      # longest a RESOLVE waits for the background lookup of the same URL (the plugin gives up at 12 s)
+
+    def __init__(self, yt_dlp_mod):
+        self.yt = yt_dlp_mod
+        self.cond = threading.Condition()
+        self.done = {}         # url -> (monotonic time, fields)
+        self.queue = []
+        self.current = ""
+        self.running = False
+
+    def _fresh(self, url: str):
+        hit = self.done.get(url)
+        if hit is None:
+            return None
+        if time.monotonic() - hit[0] < self.TTL:
+            return hit[1]
+        del self.done[url]
+        return None
+
+    def _keep(self, url: str, fields: tuple) -> None:
+        self.done[url] = (time.monotonic(), fields)
+        if len(self.done) > self.MAX_KEPT:
+            for old in sorted(self.done, key=lambda u: self.done[u][0])[:len(self.done) - self.MAX_KEPT]:
+                del self.done[old]
+
+    def prepare(self, urls: list) -> None:
+        """Replaces the queue: rows from an older PREPARE that are not done yet are no longer likely."""
+        with self.cond:
+            self.queue = [u for u in urls[:self.MAX_AHEAD] if u and u != self.current and self._fresh(u) is None]
+            if self.queue and not self.running:
+                self.running = True
+                threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self) -> None:
+        while True:
+            with self.cond:
+                if not self.queue:
+                    self.running = False
+                    return
+                url = self.queue.pop(0)
+                self.current = url
+            try:
+                fields = ytdlp_resolve_fields(self.yt, "youtube", url)
+            except Exception as exc:
+                fields = None
+                chlog(f"prepare failed {url}: {exc}")
+            with self.cond:
+                if fields:
+                    self._keep(url, fields)
+                self.current = ""
+                self.cond.notify_all()
+
+    def resolve(self, provider: str, url: str) -> tuple:
+        if provider == "youtube":
+            deadline = time.monotonic() + self.WAIT
+            with self.cond:
+                if url in self.queue:
+                    self.queue.remove(url)
+                while self.current == url and time.monotonic() < deadline:
+                    self.cond.wait(deadline - time.monotonic())
+                fields = self._fresh(url)
+            if fields:
+                return fields
+        fields = ytdlp_resolve_fields(self.yt, provider, url)
+        if provider == "youtube":
+            with self.cond:
+                self._keep(url, fields)
+        return fields
+
+
+RESOLVER = None   # set in main()
+
+
+def resolve_request_ytdlp(yt_dlp_mod, provider: str, source_url: str) -> None:
+    resolver = RESOLVER if RESOLVER is not None else Resolver(yt_dlp_mod)
+    write_fields("RESOLVE_OK", *resolver.resolve(provider, source_url))
 
 
 def load_provider_config() -> dict:
@@ -775,12 +872,223 @@ def describe_error(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}"
 
 
+DISCOGS_BASE = os.environ.get("CRATEDIG_DISCOGS_BASE", "https://api.discogs.com")   # the tests point this at a local fake
+OEMBED_BASE = os.environ.get("CRATEDIG_OEMBED_BASE", "https://www.youtube.com")      # likewise
+
+
+_alive = {}                 # video URL -> still on YouTube (this run)
+_oembed_conn = threading.local()
+_alive_lock = threading.Lock()
+
+
+def youtube_video_alive(url: str) -> bool:
+    """False only when YouTube says the video is gone (removed, deleted, a bad id): its oEmbed answers 400 / 404. A private or
+    embedding-disabled video answers 401 and stays (many label uploads can't be embedded but play fine); a network failure
+    or a slow answer keeps it too. About 150 ms, one call per video, remembered for the run."""
+    with _alive_lock:
+        if url in _alive:
+            return _alive[url]
+    ok = True
+    path = "/oembed?format=json&url=" + urllib.parse.quote(url, safe="")
+    for attempt in (0, 1):   # a kept-alive connection per thread; once more on a fresh one if the old one was closed
+        conn = getattr(_oembed_conn, "c", None)
+        try:
+            if conn is None:
+                u = urllib.parse.urlsplit(OEMBED_BASE)
+                cls = http.client.HTTPSConnection if u.scheme == "https" else http.client.HTTPConnection
+                conn = _oembed_conn.c = cls(u.netloc, timeout=3)
+            conn.request("GET", path, headers={"User-Agent": "Mozilla/5.0 (CrateDigger)", "Connection": "keep-alive"})
+            r = conn.getresponse()
+            r.read()
+            ok = r.status not in (400, 404)
+            break
+        except Exception:
+            try:
+                conn.close()
+            except Exception:
+                pass
+            _oembed_conn.c = None
+            ok = True
+    with _alive_lock:
+        if len(_alive) > 5000:
+            _alive.clear()
+        _alive[url] = ok
+    return ok
+
+
+class DiscogsClient:
+    """GETs to the Discogs API over one kept-alive connection per thread: a fresh TLS handshake for every call was a large part
+    of a search's time on the MPC's CPU. Remembers the rate-limit headers Discogs sends with each answer, so a search can pace
+    itself instead of running into a 429."""
+    TIMEOUT = 10
+
+    def __init__(self, base: str, token: str, user_agent: str):
+        parts = urllib.parse.urlsplit(base)
+        self.scheme = parts.scheme or "https"
+        self.host = parts.netloc
+        self.prefix = parts.path.rstrip("/")
+        self.headers = {"User-Agent": user_agent, "Accept": "application/json"}
+        if _gzip is not None:
+            self.headers["Accept-Encoding"] = "gzip"
+        if token:
+            self.headers["Authorization"] = f"Discogs token={token}"
+        self.limit = 60 if token else 25      # corrected by the X-Discogs-Ratelimit header
+        self.remaining = None
+        self.seen_at = 0.0
+        self.lock = threading.Lock()
+        self.local = threading.local()
+
+    def budget(self) -> int:
+        """Calls left in Discogs' moving 60 s window, by the last answer's headers (the whole limit once a minute has gone by)."""
+        with self.lock:
+            if self.remaining is None or time.monotonic() - self.seen_at > 60:
+                return self.limit
+            return self.remaining
+
+    def _note_limits(self, resp) -> None:
+        try:
+            limit = resp.getheader("X-Discogs-Ratelimit")
+            remaining = resp.getheader("X-Discogs-Ratelimit-Remaining")
+            with self.lock:
+                if limit:
+                    self.limit = int(limit)
+                if remaining is not None:
+                    self.remaining = int(remaining)
+                    self.seen_at = time.monotonic()
+        except ValueError:
+            pass
+
+    def _drop(self) -> None:
+        conn = getattr(self.local, "conn", None)
+        self.local.conn = None
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    def get(self, path: str, params: dict = None) -> dict:
+        target = self.prefix + path
+        if params:
+            target += "?" + urllib.parse.urlencode(params, doseq=True)
+        url = f"{self.scheme}://{self.host}{target}"
+        with self.lock:
+            spent = self.remaining is not None and self.remaining <= 0 and time.monotonic() - self.seen_at < 60
+            wait = int(61 - (time.monotonic() - self.seen_at))
+        if spent:
+            raise RateLimited(max(wait, 1))     # the last answer said none are left: a call now would only be refused
+        failures = 0
+        while True:
+            conn = getattr(self.local, "conn", None)
+            reused = conn is not None
+            if conn is None:
+                cls = http.client.HTTPSConnection if self.scheme == "https" else http.client.HTTPConnection
+                conn = cls(self.host, timeout=self.TIMEOUT)
+                self.local.conn = conn
+            try:
+                conn.request("GET", target, headers=self.headers)
+                resp = conn.getresponse()
+                body = resp.read()
+            except (http.client.HTTPException, OSError) as exc:
+                self._drop()
+                if reused and not isinstance(exc, TimeoutError):
+                    continue          # Discogs closed the idle connection: reconnect at once (the next try is a fresh one)
+                failures += 1
+                if failures < 3:
+                    time.sleep(1)
+                    continue
+                raise urllib.error.URLError(exc)
+            if resp.will_close:
+                self._drop()
+            self._note_limits(resp)
+            if resp.status == 429:
+                # Don't sleep-and-retry: that just burns the search timeout (and the plugin
+                # then retries the whole search). Report it, with Discogs' own wait hint.
+                try:
+                    wait = int(resp.getheader("Retry-After") or 60)
+                except ValueError:
+                    wait = 60
+                raise RateLimited(min(max(wait, 1), 120))
+            if resp.status >= 400:
+                raise urllib.error.HTTPError(url, resp.status, resp.reason, resp.headers, None)
+            if (resp.getheader("Content-Encoding") or "").lower() == "gzip":
+                body = _gzip.decompress(body)
+            return json.loads(body.decode("utf-8", errors="replace"))
+
+
+def release_cache_path() -> str:
+    dirs = [os.environ.get("CRATEDIG_CACHE_DIR", ""), os.path.join(module_dir(), "cache"), tempfile.gettempdir()]
+    for d in dirs:
+        if not d:
+            continue
+        try:
+            os.makedirs(d, exist_ok=True)
+            if os.access(d, os.W_OK):
+                return os.path.join(d, "discogs_releases.json")
+        except OSError:
+            continue
+    return os.path.join(tempfile.gettempdir(), "discogs_releases.json")
+
+
+class ReleaseCache:
+    """Discogs release lookups kept on disk between searches and power cycles: release id -> what a result needs from it, or
+    None for a release with no YouTube video. A narrow filter keeps drawing from the same few hundred releases, and each one
+    remembered is a Discogs call saved (and a share of the 25-a-minute limit)."""
+    TTL = 14 * 86400
+    MAX = 3000
+
+    def __init__(self, path: str):
+        self.path = path
+        self.lock = threading.Lock()
+        self.data = {}
+        self.dirty = False
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                self.data = {k: v for k, v in data.items()
+                             if isinstance(v, list) and len(v) == 2 and isinstance(v[0], (int, float))}
+        except Exception:
+            pass
+
+    def get(self, release_id):
+        with self.lock:
+            item = self.data.get(str(release_id))
+        if item is not None and time.time() - item[0] < self.TTL:
+            return True, item[1]
+        return False, None
+
+    def put(self, release_id, entry) -> None:
+        with self.lock:
+            self.data[str(release_id)] = [int(time.time()), entry]
+            self.dirty = True
+
+    def save(self) -> None:
+        with self.lock:
+            if not self.dirty:
+                return
+            if len(self.data) > self.MAX:
+                self.data = dict(sorted(self.data.items(), key=lambda kv: kv[1][0])[-self.MAX:])
+            snapshot = json.dumps(self.data, separators=(",", ":"), ensure_ascii=False)
+            self.dirty = False
+        try:
+            tmp = self.path + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                f.write(snapshot)
+            os.replace(tmp, self.path)
+        except Exception as exc:
+            chlog(f"release cache not saved: {exc}")
+
+
 class CrateDigSession:
-    DISCOGS_BASE = "https://api.discogs.com"
     MAX_EXCLUDE_IDS = 200
     USER_AGENT = "SchwungWebstream/1.0 +https://github.com/charlesvestal/schwung-webstream"
+    WORKERS = 4             # release lookups in flight at once
+    FG_RESERVE = 2          # calls a search leaves spare in Discogs' window once it has something to show
+    MAX_PAGE_FETCHES = 3    # 100 entries/page, 3 pages = 300 candidates
 
-    def __init__(self, token: str = ""):
+    def __init__(self, token: str = "", cache: "ReleaseCache" = None):
+        self.gone = 0
         self.token = token
         self.filter_genre = ""
         self.filter_style = ""
@@ -795,35 +1103,17 @@ class CrateDigSession:
         self.exclude_ids: list = []
         self.pool_size_cache: dict = {}
         self.empty_reason = ""     # why the last get_random_releases() found nothing (set when it returns [])
+        self.client = DiscogsClient(DISCOGS_BASE, token, self.USER_AGENT)
+        self.cache = cache if cache is not None else ReleaseCache(release_cache_path())
+        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=self.WORKERS)
+        # The next search's results, looked up in the background while the user listens (start_refill)
+        self.ready: list = []
+        self.ready_key = ""
+        self.refill_thread = None
+        self.refill_stop = threading.Event()
 
     def _request(self, path: str, params: dict = None) -> dict:
-        import time
-        url = f"{self.DISCOGS_BASE}{path}"
-        if params:
-            url += "?" + urllib.parse.urlencode(params, doseq=True)
-        headers = {"User-Agent": self.USER_AGENT}
-        if self.token:
-            headers["Authorization"] = f"Discogs token={self.token}"
-        req = urllib.request.Request(url, headers=headers)
-        for attempt in range(3):
-            try:
-                with urllib.request.urlopen(req, timeout=10) as resp:
-                    return json.loads(resp.read().decode("utf-8", errors="replace"))
-            except urllib.error.HTTPError as exc:
-                if exc.code == 429:
-                    # Don't sleep-and-retry: that just burns the search timeout (and the plugin
-                    # then retries the whole search). Report it, with Discogs' own wait hint.
-                    try:
-                        wait = int(exc.headers.get("Retry-After") or 60)
-                    except Exception:
-                        wait = 60
-                    raise RateLimited(min(max(wait, 1), 120))
-                raise
-            except urllib.error.URLError as exc:
-                if attempt < 2:
-                    time.sleep(1)
-                    continue
-                raise
+        return self.client.get(path, params)
 
     def set_filter(self, filter_json: str):
         data = json.loads(filter_json)
@@ -852,6 +1142,7 @@ class CrateDigSession:
         if filters_changed:
             self.exclude_ids = []
             self.pool_size_cache = {}
+            self.ready = []
 
     def _build_search_params(self) -> dict:
         params = {"type": "release", "per_page": "100"}
@@ -878,7 +1169,6 @@ class CrateDigSession:
     def _get_pool_size_and_first_page(self, params: dict):
         """Returns (pool_pages, first_page_results, first_page_number).
         Caches pool size; first page data is only returned on cache miss."""
-        import random
         key = self._cache_key()
         if key in self.pool_size_cache:
             return self.pool_size_cache[key], None, None
@@ -899,9 +1189,88 @@ class CrateDigSession:
         data = self._request("/database/search", probe)
         return pages, data.get("results", []), page
 
-    def get_random_releases(self, count: int = 5) -> list:
-        import random
+    @staticmethod
+    def _release_entry(release: dict):
+        """What a result needs from a /releases answer, or None when it has no YouTube video (that is cached too)."""
+        videos = [{"uri": v.get("uri"), "title": v.get("title") or "", "duration": v.get("duration")}
+                  for v in (release.get("videos") or [])
+                  if isinstance(v, dict) and "youtube.com" in (v.get("uri") or "")]
+        if not videos:
+            return None
+        artists = release.get("artists") or []
+        images = [i for i in (release.get("images") or []) if isinstance(i, dict) and i.get("uri")]
+        images.sort(key=lambda i: i.get("type") != "primary")              # the front cover first
+        genres = release.get("genres") or []
+        styles = release.get("styles") or []
+        return {
+            "artist": (artists[0].get("name", "") if artists and isinstance(artists[0], dict) else ""),
+            "title": release.get("title", ""),
+            "year": str(release.get("year") or ""),
+            "country": release.get("country") or "",
+            "genre": ", ".join(genres) if isinstance(genres, list) else "",
+            "style": ", ".join(styles) if isinstance(styles, list) else "",
+            "art": images[0]["uri"] if images else "",                       # the cover (600 px): the deck skin's label colour
+            "videos": videos,
+        }
+
+    def _alive_video(self, release_id, entry: dict):
+        """A random one of the release's YouTube videos that is still there (youtube_video_alive), or None. The gone ones leave
+        the cached release, so they cost nothing next time."""
+        videos = list(entry["videos"])
+        random.shuffle(videos)
+        dead = []
+        pick = None
+        for v in videos:
+            if youtube_video_alive(v.get("uri", "")):
+                pick = v
+                break
+            dead.append(v)
+        if dead:
+            left = [v for v in entry["videos"] if v not in dead]
+            self.cache.put(release_id, dict(entry, videos=left) if left else None)
+        return pick
+
+    def _checked(self, cands: list, need: int) -> list:
+        """The candidates (release id, entry) whose release still has a playable video, as results: at most need, looked at
+        in parallel. Those whose videos are all gone are dropped (a dead link showed as UNAVAILABLE once played)."""
+        if not cands or need <= 0:
+            return []
+        picks = list(self.pool.map(lambda c: self._alive_video(*c), cands))
+        out = []
+        for (release_id, entry), video in zip(cands, picks):
+            if video is None:
+                self.gone += 1
+            elif len(out) < need:
+                out.append(self._result(release_id, entry, video))
+        return out
+
+    def _result(self, release_id, entry: dict, video: dict) -> dict:
+        self.exclude_ids.append(release_id)
+        if len(self.exclude_ids) > self.MAX_EXCLUDE_IDS:
+            self.exclude_ids = self.exclude_ids[-self.MAX_EXCLUDE_IDS:]
+        return {
+            "id": str(release_id),
+            "title": video.get("title") or f"{entry['artist']} - {entry['title']}",
+            "channel": entry["artist"],
+            "duration": video.get("duration"),
+            "url": video.get("uri", ""),
+            "genre": entry["genre"],
+            "style": entry["style"],
+            "country": entry["country"],
+            "year": entry["year"],
+            "art": entry.get("art", ""),
+        }
+
+    def get_random_releases(self, count: int = 5, stop: threading.Event = None) -> list:
+        """Up to count random releases matching the filters that have a YouTube video. Releases looked up before come from the
+        disk cache at no cost; the rest are looked up WORKERS at a time. A search keeps FG_RESERVE calls of Discogs' window
+        spare once it has something to show. The background refill (stop given) leaves refill_reserve() calls for the user's
+        next search and gives up as soon as stop is set."""
         self.empty_reason = ""
+        background = stop is not None
+        reserve = self.refill_reserve() if background else self.FG_RESERVE
+        if count <= 0 or (background and self.client.budget() <= reserve):
+            return []
         params = self._build_search_params()
         pool_size, first_results, first_page = self._get_pool_size_and_first_page(params)
         if pool_size == 0:
@@ -911,15 +1280,19 @@ class CrateDigSession:
 
         errors = []        # every Discogs call that failed and was skipped, so a run of failures isn't reported as "no results"
         no_video = 0
+        self.gone = 0      # releases whose videos have all gone from YouTube
         found = []
         seen_pages = set()
+        tried = set()
         release_lookups = 0
-        max_page_fetches = 3   # 100 entries/page, 3 pages = 300 candidates
-        # Capped independently of count (not just count*4): count's ceiling went from 5 to 16
-        # for more/fuller results pages, but each lookup is its own Discogs API call, and the
-        # unauthenticated rate limit is only 25/min -- so a single search must stay well under
-        # that regardless of how many results were asked for.
+        # Capped independently of count (not just count*4): each lookup is its own Discogs API call, and the
+        # unauthenticated rate limit is only 25/min -- so a single search must stay well under that regardless
+        # of how many results were asked for. Cached releases don't count: they cost no call.
         max_release_lookups = min(count * 4, 20)
+
+        def out_of_budget() -> bool:
+            # with nothing to show yet a search still asks, so Discogs' own 429 can say how long to wait
+            return self.client.budget() <= reserve and (background or bool(found))
 
         # Use first page from pool probe if available (saves 1 API call)
         pages_data = []
@@ -927,20 +1300,26 @@ class CrateDigSession:
             pages_data.append((first_page, first_results))
             seen_pages.add(first_page)
 
-        while len(found) < count and len(seen_pages) < max_page_fetches and release_lookups < max_release_lookups:
+        halted = False
+        while (not halted and len(found) < count and len(seen_pages) < self.MAX_PAGE_FETCHES
+               and release_lookups < max_release_lookups):
+            if background and stop.is_set():
+                break
             if not pages_data:
                 if len(seen_pages) >= pool_size:
                     break      # every page of a small pool is already tried (looping on seen pages never ended)
                 page = random.randint(1, pool_size)
                 if page in seen_pages:
                     continue
+                if out_of_budget():
+                    break
                 seen_pages.add(page)
                 params["page"] = str(page)
 
                 try:
                     data = self._request("/database/search", params)
                 except RateLimited:
-                    if found:
+                    if found or background:
                         break
                     raise
                 except Exception as exc:
@@ -953,78 +1332,122 @@ class CrateDigSession:
             else:
                 page, results = pages_data.pop(0)
 
-            # Shuffle and try entries on this page
+            # Shuffle the page; remembered releases first (free), then the rest looked up in parallel waves
             random.shuffle(results)
+            misses = []
+            hits = []
             for entry in results:
-                if len(found) >= count or release_lookups >= max_release_lookups:
-                    break
                 release_id = entry.get("id")
-                if not release_id or release_id in self.exclude_ids:
+                if not release_id or release_id in self.exclude_ids or release_id in tried:
                     continue
-
-                release_lookups += 1
-                try:
-                    release = self._request(f"/releases/{release_id}")
-                except RateLimited:
-                    if found:
-                        return found
-                    raise
-                except Exception as exc:
-                    errors.append(exc)
-                    continue
-
-                videos = release.get("videos", [])
-                if not videos:
+                tried.add(release_id)
+                hit, cached = self.cache.get(release_id)
+                if not hit:
+                    misses.append(release_id)
+                elif cached is None:
                     no_video += 1
-                    continue
+                elif len(hits) < (count - len(found)) * 2:
+                    hits.append((release_id, cached))
+            found.extend(self._checked(hits, count - len(found)))
 
-                video = videos[random.randint(0, len(videos) - 1)]
-                video_url = video.get("uri", "")
-                if not video_url or "youtube.com" not in video_url:
-                    youtube_videos = [v for v in videos if "youtube.com" in (v.get("uri") or "")]
-                    if not youtube_videos:
-                        no_video += 1
+            i = 0
+            while len(found) < count and i < len(misses) and release_lookups < max_release_lookups:
+                if (background and stop.is_set()) or out_of_budget():
+                    halted = True
+                    break
+                need = count - len(found)
+                room = self.client.budget() - reserve
+                # half again what is missing (many releases have no video), one or two rounds of the pool, within budget
+                n = max(1, min(max_release_lookups - release_lookups, need + (need + 1) // 2, self.WORKERS * 2,
+                               room if room > 0 else 1))
+                wave = misses[i:i + n]
+                i += len(wave)
+                release_lookups += len(wave)
+                futures = [(rid, self.pool.submit(self._request, f"/releases/{rid}")) for rid in wave]
+                rate_hit = None
+                fresh = []
+                for release_id, fut in futures:
+                    try:
+                        release = fut.result()
+                    except RateLimited as exc:
+                        rate_hit = exc
                         continue
-                    video = youtube_videos[random.randint(0, len(youtube_videos) - 1)]
-                    video_url = video.get("uri", "")
-
-                artists = release.get("artists", [])
-                artist_name = artists[0].get("name", "") if artists else ""
-                title = release.get("title", "")
-                year = str(release.get("year") or "")
-                country = release.get("country") or ""
-                genres = release.get("genres") or []
-                styles = release.get("styles") or []
-                genre_str = ", ".join(genres) if isinstance(genres, list) else ""
-                style_str = ", ".join(styles) if isinstance(styles, list) else ""
-                video_title = video.get("title", f"{artist_name} - {title}")
-                video_duration = video.get("duration")
-
-                self.exclude_ids.append(release_id)
-                if len(self.exclude_ids) > self.MAX_EXCLUDE_IDS:
-                    self.exclude_ids = self.exclude_ids[-self.MAX_EXCLUDE_IDS:]
-
-                found.append({
-                    "id": str(release_id),
-                    "title": video_title,
-                    "channel": artist_name,
-                    "duration": video_duration,
-                    "url": video_url,
-                    "genre": genre_str,
-                    "style": style_str,
-                    "country": country,
-                    "year": year,
-                })
+                    except Exception as exc:
+                        errors.append(exc)
+                        continue
+                    entry = self._release_entry(release)
+                    self.cache.put(release_id, entry)     # the extras of a wave are kept for a later search
+                    if entry is None:
+                        no_video += 1
+                    else:
+                        fresh.append((release_id, entry))
+                found.extend(self._checked(fresh, count - len(found)))
+                if rate_hit is not None:
+                    if found or background:
+                        halted = True
+                        break
+                    raise rate_hit
 
         random.shuffle(found)
         if not found:
             if errors and no_video == 0:
                 raise errors[-1]      # nothing but failed calls: report the failure, not "no results"
-            if no_video:
-                self.empty_reason = f"No playable video in {no_video} releases tried, search again"
+            if no_video or self.gone:
+                self.empty_reason = f"No playable video in {no_video + self.gone} releases tried, search again"
             else:
                 self.empty_reason = "No releases found, search again"
         return found
+
+    # ---- the next search, looked up while the user listens -------------------------------------------------------------
+    def take_ready(self, count: int) -> list:
+        """Results the background refill found for the current filters (already in exclude_ids, so not shown twice)."""
+        if self.ready_key != self._cache_key():
+            self.ready = []
+            return []
+        out, self.ready = self.ready[:count], self.ready[count:]
+        return out
+
+    def refill_reserve(self) -> int:
+        """Calls the refill leaves in Discogs' window for the user's next search: one whole search's worth (20 lookups and
+        2 pages), or half the window without a token (25 a minute)."""
+        return min(self.client.limit // 2, 22)
+
+    def start_refill(self, count: int) -> None:
+        self.stop_refill()
+        key = self._cache_key()
+        if self.ready_key != key:
+            self.ready = []
+            self.ready_key = key
+        if len(self.ready) >= count:
+            return
+        stop = threading.Event()
+        self.refill_stop = stop
+
+        def run():
+            deadline = time.monotonic() + 180
+            try:
+                while not stop.is_set() and len(self.ready) < count and time.monotonic() < deadline:
+                    if self.client.budget() <= self.refill_reserve() + 1:
+                        stop.wait(3)          # Discogs' window refills over a minute; the user's next search comes first
+                        continue
+                    got = self.get_random_releases(count - len(self.ready), stop=stop)
+                    if not got:
+                        break                 # an exhausted pool or a failure: the next search does its own lookups
+                    self.ready.extend(got)
+            except Exception as exc:
+                chlog(f"refill stopped: {exc}")
+            finally:
+                self.cache.save()
+
+        self.refill_thread = threading.Thread(target=run, daemon=True)
+        self.refill_thread.start()
+
+    def stop_refill(self) -> None:
+        """Called before every CRATEDIG_* command, so the refill never changes the session under a foreground command."""
+        self.refill_stop.set()
+        if self.refill_thread is not None:
+            self.refill_thread.join(timeout=12)
+            self.refill_thread = None
 
 
 def samplette_init(session: SampletteSession) -> None:
@@ -1105,11 +1528,17 @@ def discogs_search(session: CrateDigSession, count_text: str) -> None:
     if count > 16:   # 2 full pages of the plugin's 8-row results list (was capped at 5: only
         count = 16   # ever filled 1 page, and the page stepper always read "1/1")
 
+    releases = session.take_ready(count)       # found in the background since the last search: no wait for these
     try:
-        releases = session.get_random_releases(count)
+        if len(releases) < min(count, 8):      # a full page of the plugin's list is shown at once; the refill tops up later
+
+            releases += session.get_random_releases(count - len(releases))
     except Exception as exc:
-        write_fields("ERROR", describe_error(exc))
-        return
+        if not releases:
+            session.cache.save()
+            write_fields("ERROR", describe_error(exc))
+            return
+    random.shuffle(releases)
 
     n = 0
     write_fields("SEARCH_BEGIN")
@@ -1123,18 +1552,21 @@ def discogs_search(session: CrateDigSession, count_text: str) -> None:
         style = clean_field(item.get("style") or "")
         country = clean_field(item.get("country") or "")
         year = clean_field(item.get("year") or "")
+        art = clean_field(item.get("art") or "")
 
         if not title or not url:
             continue
 
         write_fields("SEARCH_ITEM", sid, title, channel, duration, url,
-                     "", "", "", genre, style, country, year)
+                     "", "", "", genre, style, country, year, art)
         n += 1
 
     if n:
         write_fields("SEARCH_END", str(n))
+        session.start_refill(count)     # saves the release cache when it ends
     else:
         write_fields("SEARCH_END", "0", session.empty_reason or "Discogs results had no usable video links")
+        session.cache.save()
 
 
 # ---------------------------------------------------------------------------
@@ -1532,8 +1964,9 @@ def main() -> int:
     except Exception:
         yt_dlp_mod = None
 
-    global _YT
+    global _YT, RESOLVER
     _YT = yt_dlp_mod
+    RESOLVER = Resolver(yt_dlp_mod)
     samplette = SampletteSession()
     config = load_provider_config()
     # Schwung-manager managed secret takes precedence, then legacy provider
@@ -1560,8 +1993,14 @@ def main() -> int:
         cmd = parts[0]
 
         try:
+            if cmd.startswith("CRATEDIG_"):
+                cratedig.stop_refill()      # the refill never runs under a command that reads or changes the session
             if cmd == "PING":
                 write_fields("PONG")
+            elif cmd == "PREPARE":
+                # the rows likely to be played next; answered at once, resolved in the background (Resolver)
+                RESOLVER.prepare([u for u in parts[1:] if u.startswith("http")])
+                write_fields("PREPARE_OK")
             elif cmd == "SEARCH":
                 provider, limit_text, query = parse_search_parts(parts)
                 search_request(yt_dlp_mod, provider, limit_text, query)
@@ -1594,6 +2033,8 @@ def main() -> int:
                     ffmpeg_path = parts[4] if len(parts) > 4 else ""
                     download_request(yt_dlp_mod, provider, source, output_path, ffmpeg_path)
             elif cmd == "QUIT":
+                cratedig.stop_refill()
+                cratedig.cache.save()
                 write_fields("BYE")
                 break
             else:

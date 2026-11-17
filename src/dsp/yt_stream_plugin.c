@@ -133,6 +133,7 @@ typedef struct {
     char meta_style[SEARCH_TEXT_MAX];
     char meta_country[48];
     char meta_year[8];
+    char art[SEARCH_URL_MAX];      /* the release's cover image (Discogs), "" when the search has none */
 } search_result_t;
 
 typedef struct {
@@ -145,6 +146,7 @@ typedef struct {
     int pipe_fd;
     pid_t stream_pid;
     bool stream_eof;
+    bool input_done;           /* the decoder has finished: what is left is in the ring, and the track ends when that has played */
     int restart_countdown;
     bool active_stream_resolved;
     bool resolved_fallback_attempted;
@@ -207,11 +209,7 @@ typedef struct {
     pthread_t prefetch_thread;
     bool prefetch_thread_valid;
     bool prefetch_thread_running;
-    char prefetch_source_url[STREAM_URL_MAX];
-    char prefetch_media_url[STREAM_URL_MAX];
-    char prefetch_user_agent[HTTP_HEADER_MAX];
-    char prefetch_referer[HTTP_HEADER_MAX];
-    bool prefetch_ready;
+    char prefetch_urls[STREAM_URL_MAX];   /* the tab-separated rows last sent with PREPARE */
 
     pthread_mutex_t search_mutex;
     pthread_t search_thread;
@@ -355,6 +353,38 @@ static int read_daemon_line_locked(yt_instance_t *inst, char *line, size_t line_
     }
     trim_line_end(line);
     return 0;
+}
+
+/* PREPARE: the rows likely to be played next (tab-separated URLs). The daemon answers at once and resolves them in the
+ * background, so the RESOLVE of a prepared row comes back without waiting for yt-dlp. Daemon lock held. */
+#define PREPARE_AHEAD 3
+static void send_prepare_locked(yt_instance_t *inst, const char *urls) {
+    char req[STREAM_URL_MAX + 16];
+    char line[DAEMON_LINE_MAX];
+
+    if (!inst || !urls || urls[0] == '\0' || !inst->daemon_in) return;
+    snprintf(req, sizeof(req), "PREPARE\t%s\n", urls);
+    if (fputs(req, inst->daemon_in) == EOF || fflush(inst->daemon_in) != 0 ||
+        read_daemon_line_locked(inst, line, sizeof(line), 3000) != 0) {
+        stop_daemon_locked(inst);      /* a late answer would be read as the next command's: start clean */
+        return;
+    }
+}
+
+static void join_urls(char *out, size_t out_len, const search_result_t *results, int from, int count) {
+    size_t used = 0;
+    int i;
+
+    out[0] = '\0';
+    for (i = from; i < count && i < from + PREPARE_AHEAD; i++) {
+        size_t n = strlen(results[i].url);
+        if (n == 0) continue;
+        if (used + n + 2 > out_len) break;
+        if (used) out[used++] = '\t';
+        memcpy(out + used, results[i].url, n);
+        used += n;
+        out[used] = '\0';
+    }
 }
 
 static int start_daemon_locked(yt_instance_t *inst, char *err, size_t err_len) {
@@ -932,6 +962,7 @@ static void restart_stream_from_beginning(yt_instance_t *inst, size_t discard_sa
     clear_ring(inst);
     clear_error(inst);
     inst->stream_eof = false;
+    inst->input_done = false;
     inst->restart_countdown = 0;
     inst->paused = false;
     inst->played_samples = 0;
@@ -942,9 +973,17 @@ static void restart_stream_from_beginning(yt_instance_t *inst, size_t discard_sa
     inst->resolved_fallback_attempted = false;
 }
 
+/* Play from target_track (samples into the track). Inside the buffered audio it moves the playhead; further back than
+ * the ring holds, or more than a few seconds past what has arrived, the stream starts again there (ffmpeg -ss). */
+static void seek_to_track_samples(yt_instance_t *inst, int64_t target_track, long delta_sec);
+
 static void seek_relative_seconds(yt_instance_t *inst, long delta_sec) {
+    if (!inst || inst->stream_url[0] == '\0') return;
+    seek_to_track_samples(inst, (int64_t)track_pos_samples(inst) + (int64_t)delta_sec * (int64_t)MOVE_SAMPLE_RATE * 2LL, delta_sec);
+}
+
+static void seek_to_track_samples(yt_instance_t *inst, int64_t target_track, long delta_sec) {
     int64_t current_track;   /* positions below are in samples; "ring" ones count from the ring's sample 0 */
-    int64_t target_track;
     int64_t target_ring;
     int64_t oldest_ring;
     int64_t newest_ring;
@@ -954,7 +993,6 @@ static void seek_relative_seconds(yt_instance_t *inst, long delta_sec) {
     if (!inst || inst->stream_url[0] == '\0') return;
 
     current_track = (int64_t)track_pos_samples(inst);
-    target_track = current_track + (int64_t)delta_sec * (int64_t)MOVE_SAMPLE_RATE * 2LL;
     if (target_track < 0) target_track = 0;
     target_ring = target_track - (int64_t)inst->base_abs;
     oldest_ring = (int64_t)ring_oldest_abs(inst);
@@ -966,14 +1004,14 @@ static void seek_relative_seconds(yt_instance_t *inst, long delta_sec) {
              (long long)oldest_ring, (long long)newest_ring, (long long)inst->base_abs);
     yt_log(log_msg);
 
-    if (target_ring < oldest_ring) {
-        /* Further back than the ring holds (it keeps ~15 s behind the playhead): clamping here made every rewind land on
-         * the same spot. Start the stream again at the target instead (ffmpeg -ss). */
+    if (target_ring < oldest_ring || target_ring > newest_ring + (int64_t)MOVE_SAMPLE_RATE * 2LL * 4LL) {
+        /* Further back than the ring holds (it keeps ~15 s behind the playhead), or well past what has arrived (a needle
+         * drop near the end): clamping made every such seek land on the same spot. Start the stream again at the target. */
         was_paused = inst->paused;
         restart_stream_from_beginning(inst, 0);
         set_resume_position(inst, (uint64_t)target_track);
         inst->paused = was_paused;
-        yt_log("seek: before the buffered audio, restarting the stream at the target");
+        yt_log("seek: outside the buffered audio, restarting the stream at the target");
         return;
     }
     if (target_ring > newest_ring) target_ring = newest_ring;
@@ -986,6 +1024,7 @@ static void stop_everything(yt_instance_t *inst) {
     if (!inst) return;
     inst->stream_url[0] = '\0';
     inst->stream_eof = false;
+    inst->input_done = false;
     inst->restart_countdown = 0;
     inst->paused = false;
     inst->played_samples = 0;
@@ -1153,6 +1192,7 @@ static int start_stream_legacy(yt_instance_t *inst) {
 
     clear_error(inst);
     inst->stream_eof = false;
+    inst->input_done = false;
     inst->restart_countdown = 0;
     inst->prime_needed_samples = (size_t)MOVE_SAMPLE_RATE; /* ~0.5s stereo */
     inst->active_stream_resolved = false;
@@ -1223,6 +1263,7 @@ static int start_stream_resolved(yt_instance_t *inst, const char *media_url) {
 
     clear_error(inst);
     inst->stream_eof = false;
+    inst->input_done = false;
     inst->restart_countdown = 0;
     inst->prime_needed_samples = (size_t)MOVE_SAMPLE_RATE; /* ~0.5s stereo */
     inst->active_stream_resolved = true;
@@ -1445,6 +1486,8 @@ static int run_search_command_daemon(yt_instance_t *inst,
                     snprintf(results[count].meta_style, sizeof(results[count].meta_style), "%s", field_count >= 11 ? fields[10] : "");
                     snprintf(results[count].meta_country, sizeof(results[count].meta_country), "%s", field_count >= 12 ? fields[11] : "");
                     snprintf(results[count].meta_year, sizeof(results[count].meta_year), "%s", field_count >= 13 ? fields[12] : "");
+                    if (field_count < 14 || !sanitize_any_http_url(fields[13], results[count].art, sizeof(results[count].art)))
+                        results[count].art[0] = '\0';
                     sanitize_display_text(results[count].meta_genre);
                     sanitize_display_text(results[count].meta_style);
                     sanitize_display_text(results[count].meta_country);
@@ -1469,8 +1512,11 @@ static int run_search_command_daemon(yt_instance_t *inst,
                     /* the daemon may say why (field 2): bad filter, no playable videos, ... */
                     if (err && err_len > 0)
                         snprintf(err, err_len, "%s", field_count >= 3 && fields[2][0] ? fields[2] : "no results");
-                } else if (err && err_len > 0) {
-                    err[0] = '\0';
+                } else {
+                    char first_rows[STREAM_URL_MAX];
+                    if (err && err_len > 0) err[0] = '\0';
+                    join_urls(first_rows, sizeof(first_rows), results, 0, count);
+                    send_prepare_locked(inst, first_rows);     /* the first rows play at once when tapped */
                 }
                 pthread_mutex_unlock(&inst->daemon_mutex);
                 return 0;
@@ -1965,78 +2011,47 @@ static int start_resolve_async(yt_instance_t *inst) {
 
 static void* prefetch_thread_main(void *arg) {
     yt_instance_t *inst = (yt_instance_t *)arg;
-    char source_url[STREAM_URL_MAX];
-    char media_url[STREAM_URL_MAX];
-    char user_agent[HTTP_HEADER_MAX];
-    char referer[HTTP_HEADER_MAX];
+    char urls[STREAM_URL_MAX];
     char err[256];
-    int rc;
-    char log_msg[320];
 
     if (!inst) return NULL;
 
     pthread_mutex_lock(&inst->prefetch_mutex);
-    snprintf(source_url, sizeof(source_url), "%s", inst->prefetch_source_url);
+    snprintf(urls, sizeof(urls), "%s", inst->prefetch_urls);
     pthread_mutex_unlock(&inst->prefetch_mutex);
 
-    if (source_url[0] == '\0') {
-        pthread_mutex_lock(&inst->prefetch_mutex);
-        inst->prefetch_thread_running = false;
-        pthread_mutex_unlock(&inst->prefetch_mutex);
-        return NULL;
+    if (urls[0] != '\0') {
+        pthread_mutex_lock(&inst->daemon_mutex);
+        if (start_daemon_locked(inst, err, sizeof(err)) == 0) {
+            send_prepare_locked(inst, urls);
+            yt_log("prepare sent for the next rows");
+        }
+        pthread_mutex_unlock(&inst->daemon_mutex);
     }
-
-    snprintf(log_msg, sizeof(log_msg), "prefetch resolve started url=%s", source_url);
-    yt_log(log_msg);
-
-    media_url[0] = '\0';
-    user_agent[0] = '\0';
-    referer[0] = '\0';
-    err[0] = '\0';
-    rc = resolve_stream_url(inst, "youtube", source_url,
-                            media_url, sizeof(media_url),
-                            user_agent, sizeof(user_agent),
-                            referer, sizeof(referer),
-                            err, sizeof(err));
 
     pthread_mutex_lock(&inst->prefetch_mutex);
-    if (rc == 0 && strcmp(inst->prefetch_source_url, source_url) == 0) {
-        snprintf(inst->prefetch_media_url, sizeof(inst->prefetch_media_url), "%s", media_url);
-        snprintf(inst->prefetch_user_agent, sizeof(inst->prefetch_user_agent), "%s", user_agent);
-        snprintf(inst->prefetch_referer, sizeof(inst->prefetch_referer), "%s", referer);
-        inst->prefetch_ready = true;
-        snprintf(log_msg, sizeof(log_msg), "prefetch resolve done url=%s", source_url);
-        yt_log(log_msg);
-    } else {
-        snprintf(log_msg, sizeof(log_msg), "prefetch resolve failed: %s", err[0] ? err : "unknown");
-        yt_log(log_msg);
-    }
     inst->prefetch_thread_running = false;
     pthread_mutex_unlock(&inst->prefetch_mutex);
     return NULL;
 }
 
+/* A track started: have the daemon resolve the next PREPARE_AHEAD rows in the background, so stepping on (by hand, NEXT
+ * or auto-advance) finds them resolved. Runs on its own thread: the daemon lock can be held by a search for seconds. */
 static void start_prefetch_next(yt_instance_t *inst) {
-    int next_idx;
-    char next_url[SEARCH_URL_MAX];
+    char urls[STREAM_URL_MAX];
 
-    if (!inst || !inst->cratedig_auto_advance) return;
+    if (!inst) return;
 
     pthread_mutex_lock(&inst->search_mutex);
-    next_idx = inst->cratedig_result_index + 1;
-    if (next_idx < inst->search_count) {
-        snprintf(next_url, sizeof(next_url), "%s", inst->search_results[next_idx].url);
-    } else {
-        next_url[0] = '\0';
-    }
+    join_urls(urls, sizeof(urls), inst->search_results, inst->cratedig_result_index + 1, inst->search_count);
     pthread_mutex_unlock(&inst->search_mutex);
 
-    if (next_url[0] == '\0') return;
+    if (urls[0] == '\0') return;
 
     pthread_mutex_lock(&inst->prefetch_mutex);
 
-    /* Already prefetching or prefetched this URL */
-    if (strcmp(inst->prefetch_source_url, next_url) == 0) {
+    /* Already sent for these rows */
+    if (strcmp(inst->prefetch_urls, urls) == 0) {
         pthread_mutex_unlock(&inst->prefetch_mutex);
         return;
     }
@@ -2051,44 +2066,18 @@ static void start_prefetch_next(yt_instance_t *inst) {
         return;
     }
 
-    snprintf(inst->prefetch_source_url, sizeof(inst->prefetch_source_url), "%s", next_url);
-    inst->prefetch_media_url[0] = '\0';
-    inst->prefetch_user_agent[0] = '\0';
-    inst->prefetch_referer[0] = '\0';
-    inst->prefetch_ready = false;
+    snprintf(inst->prefetch_urls, sizeof(inst->prefetch_urls), "%s", urls);
     inst->prefetch_thread_running = true;
 
     if (pthread_create(&inst->prefetch_thread, NULL, prefetch_thread_main, inst) != 0) {
         inst->prefetch_thread_running = false;
+        inst->prefetch_urls[0] = '\0';
         pthread_mutex_unlock(&inst->prefetch_mutex);
         return;
     }
 
     inst->prefetch_thread_valid = true;
     pthread_mutex_unlock(&inst->prefetch_mutex);
-}
-
-static bool try_use_prefetch(yt_instance_t *inst, const char *source_url) {
-    bool hit = false;
-    if (!inst || !source_url || source_url[0] == '\0') return false;
-
-    pthread_mutex_lock(&inst->prefetch_mutex);
-    if (inst->prefetch_ready && strcmp(inst->prefetch_source_url, source_url) == 0) {
-        pthread_mutex_lock(&inst->resolve_mutex);
-        inst->resolve_ready = true;
-        inst->resolve_failed = false;
-        snprintf(inst->resolved_media_url, sizeof(inst->resolved_media_url), "%s", inst->prefetch_media_url);
-        snprintf(inst->resolved_user_agent, sizeof(inst->resolved_user_agent), "%s", inst->prefetch_user_agent);
-        snprintf(inst->resolved_referer, sizeof(inst->resolved_referer), "%s", inst->prefetch_referer);
-        inst->resolve_error[0] = '\0';
-        pthread_mutex_unlock(&inst->resolve_mutex);
-        inst->prefetch_ready = false;
-        inst->prefetch_source_url[0] = '\0';
-        hit = true;
-        yt_log("prefetch cache hit — skipping resolve");
-    }
-    pthread_mutex_unlock(&inst->prefetch_mutex);
-    return hit;
 }
 
 static void pump_pipe(yt_instance_t *inst) {
@@ -2149,11 +2138,14 @@ static void pump_pipe(yt_instance_t *inst) {
                 stop_stream(inst);
                 clear_ring(inst);
                 inst->stream_eof = false;
+                inst->input_done = false;
                 inst->restart_countdown = 0;
                 break;
             }
-            inst->stream_eof = true;
-            set_error(inst, "stream ended");
+            /* The decoder is done, but up to 45 s of the track is still in the ring: play that out first (marking the end
+             * here cut every track short by whatever was buffered). v2_render_block ends the track once the ring is empty. */
+            inst->input_done = true;
+            yt_log("stream input finished, playing out the buffer");
             stop_stream(inst);
             inst->restart_countdown = 0;
             break;
@@ -2175,10 +2167,11 @@ static void pump_pipe(yt_instance_t *inst) {
             stop_stream(inst);
             clear_ring(inst);
             inst->stream_eof = false;
+            inst->input_done = false;
             inst->restart_countdown = 0;
             break;
         }
-        inst->stream_eof = true;
+        inst->input_done = true;   /* as at the end: what arrived still plays */
         set_error(inst, "stream read error");
         stop_stream(inst);
         inst->restart_countdown = 0;
@@ -2669,6 +2662,15 @@ static void v2_set_param(void *instance, const char *key, const char *val) {
         return;
     }
 
+    if (strcmp(key, "seek_to_seconds") == 0) {   /* the deck skin's tonearm, dropped on the record */
+        if (inst->stream_url[0] != '\0') {
+            long sec = strtol(val, NULL, 10);
+            seek_to_track_samples(inst, (int64_t)(sec < 0 ? 0 : sec) * (int64_t)MOVE_SAMPLE_RATE * 2LL,
+                                  sec - (long)(track_pos_samples(inst) / (uint64_t)(MOVE_SAMPLE_RATE * 2)));
+        }
+        return;
+    }
+
     if (strcmp(key, "seek_delta_seconds") == 0) {
         long delta_sec = strtol(val, NULL, 10);
         seek_relative_seconds(inst, delta_sec);
@@ -2707,17 +2709,16 @@ static void v2_set_param(void *instance, const char *key, const char *val) {
                     snprintf(inst->stream_provider, sizeof(inst->stream_provider), "youtube");
                     snprintf(inst->stream_url, sizeof(inst->stream_url), "%s", next_url);
                     restart_stream_from_beginning(inst, 0);
-                    if (!try_use_prefetch(inst, next_url)) {
-                        pthread_mutex_lock(&inst->resolve_mutex);
-                        inst->resolve_ready = false;
-                        inst->resolve_failed = false;
-                        inst->resolved_media_url[0] = '\0';
-                        inst->resolved_user_agent[0] = '\0';
-                        inst->resolved_referer[0] = '\0';
-                        inst->resolve_error[0] = '\0';
-                        pthread_mutex_unlock(&inst->resolve_mutex);
-                        (void)start_resolve_async(inst);
-                    }
+                    /* a prepared row (start_prefetch_next) comes back from the daemon at once */
+                    pthread_mutex_lock(&inst->resolve_mutex);
+                    inst->resolve_ready = false;
+                    inst->resolve_failed = false;
+                    inst->resolved_media_url[0] = '\0';
+                    inst->resolved_user_agent[0] = '\0';
+                    inst->resolved_referer[0] = '\0';
+                    inst->resolve_error[0] = '\0';
+                    pthread_mutex_unlock(&inst->resolve_mutex);
+                    (void)start_resolve_async(inst);
                     return;
                 }
             }
@@ -2923,7 +2924,7 @@ static int v2_get_param(void *instance, const char *key, char *buf, int buf_len)
         if (inst->paused) return snprintf(buf, (size_t)buf_len, "paused");
         if (inst->seek_discard_samples > 0) return snprintf(buf, (size_t)buf_len, "seeking");
         if (!inst->pipe && inst->restart_countdown > 0) return snprintf(buf, (size_t)buf_len, "loading");
-        if (!inst->pipe && !inst->stream_eof) return snprintf(buf, (size_t)buf_len, "loading");
+        if (!inst->pipe && !inst->stream_eof && !inst->input_done) return snprintf(buf, (size_t)buf_len, "loading");
         if (inst->stream_eof) {
             bool dead;
             pthread_mutex_lock(&inst->resolve_mutex);
@@ -3101,6 +3102,15 @@ static int v2_get_param(void *instance, const char *key, char *buf, int buf_len)
             return ret;
         }
 
+        idx = get_result_index(key, "search_result_art_");
+        if (idx >= 0) {
+            int ret = -1;
+            pthread_mutex_lock(&inst->search_mutex);
+            if (idx < inst->search_count) ret = snprintf(buf, (size_t)buf_len, "%s", inst->search_results[idx].art);
+            pthread_mutex_unlock(&inst->search_mutex);
+            return ret;
+        }
+
         idx = get_result_index(key, "search_result_");
         if (idx >= 0) {
             int ret = -1;
@@ -3162,22 +3172,20 @@ static void v2_render_block(void *instance, int16_t *out_interleaved_lr, int fra
                 pthread_mutex_unlock(&inst->search_mutex);
                 stop_stream(inst);
                 inst->stream_eof = false;
+                inst->input_done = false;
                 snprintf(inst->stream_provider, sizeof(inst->stream_provider), "youtube");
                 snprintf(inst->stream_url, sizeof(inst->stream_url), "%s", next_url);
-                if (!try_use_prefetch(inst, next_url)) {
-                    pthread_mutex_lock(&inst->resolve_mutex);
-                    inst->resolve_ready = false;
-                    inst->resolve_failed = false;
-                    inst->resolved_media_url[0] = '\0';
-                    inst->resolved_user_agent[0] = '\0';
-                    inst->resolved_referer[0] = '\0';
-                    inst->resolve_error[0] = '\0';
-                    pthread_mutex_unlock(&inst->resolve_mutex);
-                    restart_stream_from_beginning(inst, 0);
-                    (void)start_resolve_async(inst);
-                } else {
-                    restart_stream_from_beginning(inst, 0);
-                }
+                /* a prepared row (start_prefetch_next) comes back from the daemon at once */
+                pthread_mutex_lock(&inst->resolve_mutex);
+                inst->resolve_ready = false;
+                inst->resolve_failed = false;
+                inst->resolved_media_url[0] = '\0';
+                inst->resolved_user_agent[0] = '\0';
+                inst->resolved_referer[0] = '\0';
+                inst->resolve_error[0] = '\0';
+                pthread_mutex_unlock(&inst->resolve_mutex);
+                restart_stream_from_beginning(inst, 0);
+                (void)start_resolve_async(inst);
             } else {
                 pthread_mutex_unlock(&inst->search_mutex);
             }
@@ -3189,7 +3197,7 @@ static void v2_render_block(void *instance, int16_t *out_interleaved_lr, int fra
         return;
     }
 
-    if (!inst->pipe) {
+    if (!inst->pipe && !inst->input_done) {
         bool resolve_ready = false;
         bool resolve_failed = false;
         bool resolve_running = false;
@@ -3254,6 +3262,12 @@ static void v2_render_block(void *instance, int16_t *out_interleaved_lr, int fra
     }
 
     pump_pipe(inst);
+
+    if (inst->input_done && ring_available(inst) == 0) {   /* the buffer has played out: the track has ended */
+        inst->stream_eof = true;
+        set_error(inst, "stream ended");
+        return;
+    }
 
     if (inst->prime_needed_samples > 0) {
         size_t avail = ring_available(inst);

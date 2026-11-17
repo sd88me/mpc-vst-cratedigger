@@ -82,11 +82,23 @@ int main(void) {
     CHECK(text(a, P_GENRE) == up(CRATEDIG_GENRES[3]) || CRATEDIG_GENRES[3][0] == 0, "genre 3 shows '%s'", text(a, P_GENRE).c_str());
     int n3 = styles_for_genre(CRATEDIG_GENRES[3])->n;
     if (n3 > 2) {
-        setStep(a, P_STYLE, 2);
+        a->setP(a, P_STYLE, 2.0f / (float)(n3 - 1));   /* a short list spans the whole range */
         settle();
         std::string want = up(styles_for_genre(CRATEDIG_GENRES[3])->styles[2]);
         CHECK(text(a, P_STYLE) == want, "style 2 of genre 3 is '%s' (want '%s')", text(a, P_STYLE).c_str(), want.c_str());
     }
+    /* the style list of one genre fills the whole range: its top is the last style, and the host is told the scaled value */
+    if (n3 > 2) {
+        a->setP(a, P_STYLE, 1.0f); settle();
+        std::string last = up(styles_for_genre(CRATEDIG_GENRES[3])->styles[n3 - 1]);
+        CHECK(text(a, P_STYLE) == last, "the style fader's top is '%s' (want the last style '%s')", text(a, P_STYLE).c_str(), last.c_str());
+        CHECK(a->getP(a, P_STYLE) > 0.99f, "the style fader went back to %.2f", a->getP(a, P_STYLE));
+        a->setP(a, P_STYLE, 0.5f); settle();
+        const int mid = (int)lroundf(0.5f * (float)(n3 - 1));
+        CHECK(text(a, P_STYLE) == up(styles_for_genre(CRATEDIG_GENRES[3])->styles[mid]), "the style fader's middle is '%s'", text(a, P_STYLE).c_str());
+        a->setP(a, P_STYLE, 0.0f); settle();
+    }
+
     /* the host nudges parameter 0 to its top and straight back: neither the genre nor its style may change */
     std::string styleBefore = text(a, P_STYLE), genreBefore = text(a, P_GENRE);
     a->setP(a, P_GENRE, 1.0f);
@@ -119,6 +131,20 @@ int main(void) {
     CHECK(text(a, P_QUERY) == "QW_", "typed text '%s'", text(a, P_QUERY).c_str());
     a->setP(a, P_K_W, 0.0f); a->setP(a, P_K_BACK, 1.0f); settle(250);
     CHECK(text(a, P_QUERY) == "Q_", "after back '%s'", text(a, P_QUERY).c_str());
+
+    /* a Q-Link tick (1/128 of the range) on a short list is one step each way */
+    {
+        const float top = (float)maxOf(P_MIN_LEN, g_maxStyle, g_maxCountry);
+        setStep(a, P_MIN_LEN, 0); settle();
+        const std::string m0 = text(a, P_MIN_LEN);
+        a->setP(a, P_MIN_LEN, 1.0f / 128.0f); settle();
+        CHECK(a->getP(a, P_MIN_LEN) * top > 0.99f && a->getP(a, P_MIN_LEN) * top < 1.01f, "a Q-Link tick up: min length index %.2f", a->getP(a, P_MIN_LEN) * top);
+        a->setP(a, P_MIN_LEN, 1.0f / top - 1.0f / 128.0f); settle();
+        CHECK(text(a, P_MIN_LEN) == m0, "a Q-Link tick down did not step back: '%s'", text(a, P_MIN_LEN).c_str());
+        a->setP(a, P_MIN_LEN, 3.0f / top); settle();
+        CHECK(a->getP(a, P_MIN_LEN) * top > 2.99f && a->getP(a, P_MIN_LEN) * top < 3.01f, "a jump is not a step: %.2f", a->getP(a, P_MIN_LEN) * top);
+        setStep(a, P_MIN_LEN, 0); settle();
+    }
 
     /* lit buttons: SOURCE is a radio, MUSIC ONLY and TRANSPORT SYNC toggle by value */
     a->setP(a, P_SOURCE_YOUTUBE, 1.0f); settle();

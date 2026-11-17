@@ -458,7 +458,7 @@ static std::string display(Plugin *p, int i) {
         if (i == P_SYNC_STATE) return p->sync ? "SYNC ON" : "SYNC OFF";
         if (i == P_TIME) return core_get(p, "playback_time");
         if (i == P_SEARCH_STATUS) return search_text(p);
-        if (i == P_QUERY) return p->query.empty() ? std::string(p->kb ? "_" : "TAP KEYBOARD TO TYPE") : upper(p->query) + (p->kb ? "_" : "");
+        if (i == P_QUERY) return p->query.empty() ? std::string(p->kb ? "_" : "TAP TO TYPE") : upper(p->query) + (p->kb ? "_" : "");
         if (i == P_NOW_PLAYING) {
             int c = current_result(p);
             if (c < 0) return "";
@@ -554,6 +554,7 @@ public:
                        : i == P_REGION ? N_CRATEDIG_REGIONS : i == P_COUNTRY ? maxCountry : i == P_PAGE ? 3 : i == P_SOURCE ? NSOURCES
                        : i == P_CHANNEL ? (int)CHANNELS_MAX : i == P_MIN_LEN ? NMIN_LENS : i == P_MAX_LEN ? NMAX_LENS : 2;
                 addParam(mpc::intParam(s.key, s.name, 0, mx - 1, 0));
+                stepMax_[i] = mx - 1;
                 break;
             }
             case T_FLOAT: addParam(mpc::floatParam(s.key, s.name, s.min, s.max, s.def, "", 2)); break;
@@ -625,11 +626,11 @@ public:
         case T_STEPPER:
             if (index == P_GENRE && !loading_.load())
             {   // the host nudges parameter 0 to its top and straight back on every prepare: only a value that stays ~40 ms counts
-                pendingGenre_ = (int)std::lround(plain);
+                pendingGenre_ = stepTarget(index, plain);
                 pendingAt_.store(nowMs());
                 return;
             }
-            stepper_set(&e_, index, (int)std::lround(plain));
+            stepper_set(&e_, index, stepTarget(index, plain));
             dirty_.store(true);
             return;
         case T_OPTION: if (index == P_KB && !loading_.load()) e_.kb = plain > 0.5f; return;   // the popup keyboard is not part of a saved state
@@ -805,12 +806,36 @@ private:
 
     void store(int i, float plain) { values_[(size_t)i]->store(param(i).toNormalised(plain), std::memory_order_relaxed); }
 
+    // A stepper's new index. A Q-Link or data-wheel tick moves the host's value by 1/128 of the range, which on a short list (PAGE: 0..2)
+    // never reaches the next index: a move that small, off the current index, is one step in its direction. Under lock.
+    //
+    // A list shorter than the host's range (the styles of one genre, the countries of one region, the pages, the channels) is spread over
+    // the whole range, so a fader or knob uses all its travel for whatever the list holds now: the host's value is the index scaled by
+    // range / (count - 1) (hostOf), and read back the same way here.
+    int stepTarget(int i, float plain)
+    {
+        const int n = stepper_count(&e_, i);
+        if (n < 2) return 0;
+        plain = getNormalised(i) * (float)(n - 1);   // the host's value (before the SDK rounds it) as a place in the list
+        const int cur = stepper_index(&e_, i), v = (int)std::lround(plain);
+        const float tick = (float)(n - 1) / 128.0f, d = plain - (float)cur;
+        if (v == cur && tick < 0.5f && std::fabs(d) > 1e-3f && std::fabs(d) <= 1.5f * tick) return cur + (d > 0 ? 1 : -1);
+        return v;
+    }
+
+    // A list index as the host's (integer) value: spread over the host's range (stepTarget).
+    float hostOf(int i, int idx)
+    {
+        const int n = stepper_count(&e_, i), R = stepMax_[i];
+        return n > 1 && R > 0 ? std::round((float)idx * (float)R / (float)(n - 1)) : 0.0f;
+    }
+
     // The value the host should show for a parameter, from the plugin's own state. Under lock.
     float want(int i)
     {
         switch (PARAMS[i].type)
         {
-        case T_STEPPER: return (float)stepper_index(&e_, i);
+        case T_STEPPER: return hostOf(i, stepper_index(&e_, i));
         case T_OPTION: return e_.kb ? 1.0f : 0.0f;
         case T_FLOAT: return e_.gain;
         case T_SLOT: return current_result(&e_) == e_.page * SLOTS + (i - P_RESULT_1) ? 1.0f : 0.0f;
@@ -948,6 +973,7 @@ private:
     std::atomic<long long> pendingAt_{0};
     std::atomic<float> peakL_{0.0f}, peakR_{0.0f};
     int pendingGenre_ = 0;
+    int stepMax_[NPARAMS] = {0};         // each stepper's top index as the host knows it (stepTarget)
     std::atomic<bool> *held_ = nullptr, *release_ = nullptr;
     float *last_ = nullptr;
     std::vector<std::string> shown_;

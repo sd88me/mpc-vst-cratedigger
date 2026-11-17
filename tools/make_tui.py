@@ -385,6 +385,9 @@ def build_find():
     c.d.rectangle([66 * S, 298 * S, 1214 * S, 299 * S], fill=M.LCD_DIM)
     M.lt(c, (72, 319), "TEXT", 12, dim=True)
     p.lcd_text("query", 130, 319, 1080, size=24, h=34)
+    touch = save(Image.new("RGBA", (8, 8), (0, 0, 0, 4)), "touch.png")   # the text line is a key too: tap it to type (alpha 4: touches need some)
+    tap_def("cd_type_line", touch, 1148, 34)
+    p.kids.append(entry("type line", "cd_type_line", {"version": 1, "handleName": "Data"}, "66 302 1148 34", remap=P("keys")))
     # lower half: DISCOGS | YOUTUBE with its CHANNEL extension (one section) | the SEARCH keys stacked at the far right
     TOP, BOT = 358, 616
     M.brushed(c, (40, TOP, 290, BOT))
@@ -408,25 +411,42 @@ def build_find():
     add_master(p)
     p.qgroup((316, 356, 1240, 530), ["source", "channel", "min_len", "max_len"])
     p.qgroup((40, 540, 1240, 616), ["music", "keys", "find_search", "gain"])
-    # the popup keyboard, shown while `kb` is on: a plate that swallows touches, and the keys over it
+    add_keyboard(p)
+    return p, c
+
+
+def add_keyboard(p):
+    # the popup keyboard, shown while `kb` is on: the whole page, the text being typed in a field at its top, the keys below
     ind = ["IndexedEnabling/1/2/%s" % P("kb")]
-    plate_img = Sprite(1280, 276)
-    plate_img.d.rectangle([0, 0, 1280 * S, 276 * S], fill=M.SILK)
-    plate_img.line([(0, 0), (1280, 0)], (60, 60, 58), 2)
-    M.title_rule(plate_img, 44, 1236, 16, "KEYBOARD")
+    plate_img = Sprite(1280, 628)
+    plate_img.d.rectangle([0, 0, 1280 * S, 628 * S], fill=M.SILK)
+    M.title_rule(plate_img, 44, 1236, 18, "KEYBOARD")
+    fx0, fy0, fx1, fy1 = KB_FIELD
+    plate_img.shadow((fx0, fy0, fx1, fy1), 6, 2, 3, 150)
+    plate_img.r((fx0, fy0, fx1, fy1), 6, fill=(26, 22, 20), outline=(60, 60, 58), width=2)
+    plate_img.r((fx0 + 6, fy0 + 6, fx1 - 6, fy1 - 6), 4, fill=(14, 10, 9))
+    plate_img.t((fx0 + 22, (fy0 + fy1) / 2), "TEXT", 11, (128, 70, 26), "lm", "b")
+    plate_img.im.putalpha(255)   # solid: nothing of the page under it shows through
     pimg = save(plate_img.image(), "kb_plate.png")
-    add_def("cd_kbplate", component([entry("Button", "Button", {"version": 1, "onImage": pimg, "offImage": pimg, "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data"}, "0 0 1280 276")],
+    add_def("cd_kbplate", component([entry("Button", "Button", {"version": 1, "onImage": pimg, "offImage": pimg, "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data"}, "0 0 1280 628")],
                                     actions=[act("Mouse Down", "Q-Link")]))
-    p.kids.append(entry("noop", "cd_kbplate", {"version": 1, "handleName": "Data"}, "0 352 1280 276", remap=P("noop"), focus="Yes", ind=ind))
+    p.kids.append(entry("noop", "cd_kbplate", {"version": 1, "handleName": "Data"}, "0 0 1280 628", remap=P("noop"), focus="Yes", ind=ind))
+    e = label("Value", "%d %d %d %d" % (fx0 + 90, fy0, fx1 - fx0 - 110, fy1 - fy0), remap=P("query"), just="left verticallyCentred",
+              colour="ffffb042", style="SemiBold", case="Original", h=th(34))
+    e["bounds"]["additionalInvalidatingHandles"] = list(ind)
+    e["bounds"]["version"] = 2
+    p.kids.append(e)
     rows = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"]
     for ri, row in enumerate(rows):
         x0 = 118 + [0, 0, 58, 174][ri]
         for k, ch in enumerate(row):
-            p.key("k_" + ch, ch, "blue" if ri == 0 else "cream", x0 + k * 116, 396 + ri * 46, 100, 40, size=18, ind=ind, nm="kb_" + ch)
-    for param, lab, cx, cy, w, col in [("k_hide", "HIDE", 130, 590, 180, "dark"), ("k_space", "SPACE", 520, 590, 480, "cream"), ("k_clear", "CLEAR", 860, 590, 180, "dark"),
-                                       ("k_send", "SEARCH", 1130, 590, 220, "red"), ("k_back", "BACK", 1180, 534, 150, "dark")]:
-        p.key(param, lab, col, cx, cy, w, 40, size=14, ind=ind, nm="kb_" + param)
-    return p, c
+            p.key("k_" + ch, ch, "blue" if ri == 0 else "cream", x0 + k * 116, 176 + ri * 84, 104, 70, size=24, ind=ind, nm="kb_" + ch)
+    for param, lab, cx, cy, w, col in [("k_hide", "HIDE", 140, 548, 200, "dark"), ("k_space", "SPACE", 520, 548, 500, "cream"), ("k_clear", "CLEAR", 880, 548, 180, "dark"),
+                                       ("k_send", "SEARCH", 1130, 548, 220, "red"), ("k_back", "BACK", 1172, 428, 136, "dark")]:
+        p.key(param, lab, col, cx, cy, w, 70, size=18, ind=ind, nm="kb_" + param)
+
+
+KB_FIELD = (40, 38, 1240, 120)
 
 
 # ---- Q-Links -----------------------------------------------------------------------------------------------------------------------------------
