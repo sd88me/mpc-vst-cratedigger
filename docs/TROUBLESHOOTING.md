@@ -6,6 +6,54 @@ Download the package for your device from [Releases](https://github.com/sd88me/m
 On a Force run `install-force.sh` from the unzipped package as root; it stops the MPC (save your project first), installs the plugin, and restarts it.
 An older Crate Digger is replaced and your `channels.txt` is kept.
 
+## Status messages
+
+The plugin shows its state on two lines of the LCD: **STATUS** (the engine and the track) and **SEARCH**.
+
+### STATUS: starting the engine
+
+The engine is the yt-dlp, Python and ffmpeg bundle in the plugin folder's `engine` folder. It starts when the plugin loads.
+
+| STATUS says | Meaning | Fix |
+|---|---|---|
+| `PREPARING ENGINE` | The engine is starting. The first time after an install or upgrade, the plugin may copy the engine to internal storage, which can take a few seconds | Wait. If it stays for more than a minute, restart the MPC |
+| `ENGINE MISSING` | The plugin folder has no `engine` folder, or `engine/bin/yt-dlp` isn't in it | The copy was incomplete. Replace the whole plugin folder with a fresh one from the release zip |
+| `ENGINE NOT RUNNABLE` | The engine is there, but the device won't run programs from the plugin's drive (an exFAT SD card or USB drive can't), and the plugin couldn't copy it anywhere that can. It tries `/sdcard/vst/.cd-sdk`, `/data/cratedigger` and `/tmp/cratedigger` | Free some space on internal storage and restart the MPC. If it repeats, report it with `/tmp/cratedigger_vst.log` (see below) |
+| `ENGINE API MISSING` / `ENGINE FAILED TO START` | The engine was found but didn't start | Restart the MPC. If it repeats, report it with `/tmp/cratedigger_vst.log` |
+
+### STATUS: playback
+
+| STATUS says | Meaning |
+|---|---|
+| `STOPPED` | Nothing is playing |
+| `LOADING` | Finding the track's audio on YouTube |
+| `BUFFERING` | Audio is arriving, playback starts in a moment |
+| `READY` | Loaded and waiting for the MPC transport (TRANSPORT SYNC is on) |
+| `STREAMING` | Playing |
+| `PAUSED` / `SEEKING` | Paused, or jumping to a new position |
+| `TRACK ENDED` | The track played to the end |
+
+When a track won't play, STATUS says why: `PRIVATE VIDEO`, `VIDEO REMOVED`, `COPYRIGHT`, `REGION BLOCKED`,
+`AGE / LOGIN`, `UNAVAILABLE`, `RATE LIMITED`, `TIMED OUT`, `NO NETWORK`, `YT-DLP MISSING` or `RESOLVE FAILED`.
+NOW PLAYING then shows the track and yt-dlp's own wording. Tap another row. `RATE LIMITED`, `TIMED OUT` and
+`NO NETWORK` may work on a retry; `YT-DLP MISSING` means the engine bundle is damaged, so replace the plugin folder.
+
+### SEARCH
+
+| SEARCH says | Meaning |
+|---|---|
+| `SEARCHING DISCOGS...` (or another source) | A search is running |
+| `DONE - N RESULTS IN X.XS` | The search finished. Results are on the rows below |
+| `QUEUED - PREVIOUS SEARCH STILL RUNNING` | Your search starts when the one before it ends |
+| `NO RESULTS` / `SEARCH ERROR` | The search ended with nothing to show and no reason given. Loosen the filters or search again |
+
+Other SEARCH messages give the reason a search failed; they are in the next section.
+
+### Log files
+
+On the device, `/tmp/cratedigger_vst.log` is the plugin's log (engine start-up, button presses) and
+`/tmp/webstream-runtime.log` is the engine's log (searches and streams). Both are cleared when the device restarts.
+
 ## Search shows an "error" status
 
 The SEARCH line on the plugin screen says what went wrong, for example `DISCOGS REJECTED THE TOKEN (HTTP

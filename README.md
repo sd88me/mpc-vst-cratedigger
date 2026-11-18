@@ -75,7 +75,8 @@ Crate Digger works without a token (Discogs allows 25 requests a minute per devi
 ```
 
 ## Troubleshooting
-The SEARCH and STATUS lines say what went wrong. See [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md). The plugin writes
+The SEARCH and STATUS lines say what went wrong. Every message is listed in
+[docs/TROUBLESHOOTING.md#status-messages](docs/TROUBLESHOOTING.md#status-messages). The plugin writes
 `/tmp/cratedigger_vst.log` on the device.
 
 ## How it works
