@@ -36,7 +36,7 @@ and stays until you switch back.
   The record turns while it plays (64-bit MPCs; on 32-bit ones it stays still to save CPU).
 - **The tonearm follows the track; drag it to move.** Drag it up towards the label to go forward, down to go back: the needle drops where you let go.
 - **A real pitch fader** (+-8 %, RESET) and **33 / 45**: the track plays faster or slower, pitch and tempo together, as a turntable does.
-- **The crate** holds the results as sleeves, with PAGE tabs; an amp in front of it has the VU meters, GAIN, the search status and SEARCH.
+- **The crate** holds the results as an assortment of sleeves (text coloured to stay readable on each), with PAGE tabs; an amp in front of it has the VU meters, GAIN, the search status and SEARCH.
 - **FILTERS and FIND** are consoles that match the amp: a fader with up / down keys for each filter, the source keys and the length faders.
 - **Q-Links on PLAY:** pitch, gain, the results page and the tonearm (turn it to move through the track), then the transport. The deck draws no
   Q-Link frame.

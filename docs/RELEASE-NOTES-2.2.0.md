@@ -7,12 +7,13 @@ A second look: the deck. Everything in 2.1.0, plus a turntable, a crate and an a
   Crate Digger on the MPC and stays until you switch back; projects do not change it.
 - **The turntable.** The record's centre label is the display: status, what is playing and the time, with the record's cover shown as dots behind
   the glass. The record turns while it plays on 64-bit MPCs (Live III and other Gen2 units); on 32-bit MPCs it stays still to save CPU.
+  Drawn after a classic direct-drive deck: an S-shaped tonearm, and a platter rim with rows of strobe dots that the strobe lamp lights red.
 - **Drag the tonearm to move through the track.** It follows the track as it plays; drag it up towards the label to go forward, down to go back,
   and the needle drops where you let go. Far jumps restart the stream at that point.
-- **Pitch and speed.** A real pitch fader (+-8 %, with RESET) and 33 / 45 keys: the track plays faster or slower, pitch and tempo together, like a
+- **Pitch and speed.** A real pitch fader (+-8 %, with RESET, a centre click and a green light at 0) and 33 / 45 keys: the track plays faster or slower, pitch and tempo together, like a
   turntable. They are saved with the project and work in both looks.
-- **The crate and the amp (PLAY).** The results are sleeves in a crate with PAGE tabs; the amp in front has two VU meters, GAIN, the search status
-  and SEARCH.
+- **The crate and the amp (PLAY).** The results are sleeves in a crate with PAGE tabs: an assortment of card, paper, gloss and printed company
+  sleeves, each with its text in a colour that stays readable on it. The amp in front has two VU meters, GAIN, the search status and SEARCH.
 - **Consoles on FILTERS and FIND.** FILTERS: one display with all five filters (long names wrap onto two lines) and a fader with up / down keys for
   each. FIND: DISCOGS / YOUTUBE / CHANNEL source keys, a display with the source's settings, faders for the minimum and maximum length under
   their readouts, MUSIC ONLY, the channel selector and a TEXT panel you tap to type.

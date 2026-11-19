@@ -213,6 +213,13 @@ int main(void) {
     CHECK(text(a, P_PITCH) == "+0.0%" && fabsf(a->getP(a, P_PITCH) - 0.5f) < 0.01f, "RESET: pitch '%s' at %.3f", text(a, P_PITCH).c_str(),
           a->getP(a, P_PITCH));
     CHECK(a->getP(a, P_PITCH_RESET) < 0.01f, "RESET did not spring back");
+    /* the centre click: a fader let go just off 0 is 0 (the host is told), and one Q-Link tick still moves it off */
+    a->setP(a, P_PITCH, 0.5f + 0.004f); settle(200);
+    CHECK(text(a, P_PITCH) == "+0.0%" && fabsf(a->getP(a, P_PITCH) - 0.5f) < 1e-4f, "detent: pitch '%s' at %.4f", text(a, P_PITCH).c_str(),
+          a->getP(a, P_PITCH));
+    a->setP(a, P_PITCH, 0.5f + 1.0f / 128.0f); settle(120);
+    CHECK(a->getP(a, P_PITCH) > 0.5f + 0.005f, "a Q-Link tick off 0 was swallowed by the detent (%.4f)", a->getP(a, P_PITCH));
+    a->setP(a, P_PITCH, 0.5f); settle(120);
     CHECK(a->getP(a, P_SPEED_33) > 0.5f && a->getP(a, P_SPEED_45) < 0.5f, "33 is not lit at start");
     a->setP(a, P_SPEED_45, 1.0f); settle(200);
     CHECK(a->getP(a, P_SPEED_45) > 0.5f && a->getP(a, P_SPEED_33) < 0.5f, "45 did not take over from 33");

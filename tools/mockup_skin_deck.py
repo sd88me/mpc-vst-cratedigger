@@ -21,7 +21,7 @@ AMBER, AMBER_DIM, AMBER_LOW = (255, 176, 66), (200, 116, 40), (128, 70, 26)
 INK = (44, 34, 26)
 PAPER = (232, 221, 196)
 CX, CY = 190, 180                                         # platter centre: the label sits in the top-left corner
-R_PLATTER, R_VINYL, R_LABEL, R_DISP = 350, 337, 172, 148
+R_PLATTER, R_VINYL, R_LABEL, R_DISP = 350, 328, 172, 148
 PLINTH_X = 612
 PIVOT, STYLUS_HEAD = (578, 118), (414, 344)
 CRATE_TOP, CRATE_FRONT = 48, 458                          # the crate's back rim and the top of its front panel
@@ -399,29 +399,42 @@ def ring_text(im, c, R, txt, size, fill, start=-1.9, size_im=None):
     im.alpha_composite(clip(L, n))
 
 
+# the strobe dots: four rows on the rim's bevel, each with its own count (on the real deck one row per speed and mains frequency)
+STROBE_ROWS = [(R_VINYL + 5.0, 600), (R_VINYL + 9.2, 610), (R_VINYL + 13.4, 622), (R_VINYL + 17.4, 632)]
+
+
 def platter_and_record(im):
     d = ImageDraw.Draw(im, "RGBA")
     # the recess the platter sits in, and the platter's own shadow
     circle(d, (CX, CY), R_PLATTER + 6, fill=(44, 44, 42))
     circle(d, (CX, CY), R_PLATTER + 6, outline=(232, 232, 226, 120), width=s(1))       # the recess's lit lip
     soft_shadow(im, (CX - R_PLATTER, CY - R_PLATTER, CX + R_PLATTER, CY + R_PLATTER), off=(8, 13), blur=12, alpha=220, ellipse=True)
-    # aluminium rim with its strobe dots
-    circle(d, (CX, CY), R_PLATTER, fill=(150, 150, 146))
+    # the platter's rim: a bevel turned away from the light, four rows of machined strobe dots on it, a chrome lip at its edge
+    rim = disc_mask((CX, CY), R_PLATTER, R_VINYL)
+    for k in range(int((R_PLATTER - R_VINYL) * S)):                  # the bevel: lighter where it turns up to the lip
+        rr = R_VINYL + k / S
+        v = int(lerp((70,), (128,), (k / S / (R_PLATTER - R_VINYL)) ** 1.6)[0])
+        circle(d, (CX, CY), rr, outline=(v, v, v + 2), width=2)
     L = layer()
     ld = ImageDraw.Draw(L)
     box = B((CX - R_PLATTER, CY - R_PLATTER, CX + R_PLATTER, CY + R_PLATTER))
-    for a0, a1, al in ((-10, 30, 140), (30, 60, 60), (100, 140, 90)):
+    for a0, a1, al in ((-20, 40, 120), (40, 70, 50), (190, 250, 70)):    # the lamp's highlight off the bevel, and the room's
         ld.pieslice(box, a0, a1, fill=(255, 255, 255, al))
-    im.alpha_composite(clip(L.filter(ImageFilter.GaussianBlur(s(10))), disc_mask((CX, CY), R_PLATTER, R_VINYL)))
-    for row, rr in enumerate((R_VINYL + 3.4, R_VINYL + 6.6, R_VINYL + 9.8, R_VINYL + 12.6)):
-        n = int(2 * math.pi * rr / (3.1 + row * 0.04))
+    im.alpha_composite(clip(L.filter(ImageFilter.GaussianBlur(s(14))), rim))
+    for rr, n in STROBE_ROWS:
         for i in range(n):
             a = 2 * math.pi * i / n
             x, y = CX + rr * math.cos(a), CY + rr * math.sin(a)
             if -4 < x < PLINTH_X and -4 < y < H + 4:
-                circle(d, (x, y), 0.95, fill=(48, 48, 50))
-                circle(d, (x - 0.4, y - 0.4), 0.35, fill=(220, 220, 214, 160))
-    circle(d, (CX, CY), R_PLATTER, outline=(60, 60, 60), width=s(1))
+                lit = 0.55 + 0.45 * max(0.0, math.cos(a - math.radians(-25)))   # facing the lamp: brighter
+                circle(d, (x + 0.35, y + 0.45), 1.15, fill=(20, 20, 22, 200))          # each dot's shade
+                circle(d, (x, y), 1.1, fill=lerp((120, 120, 118), (236, 236, 230), lit))
+                circle(d, (x - 0.35, y - 0.35), 0.4, fill=(255, 255, 252, int(200 * lit)))
+    d.arc(B((CX - R_PLATTER + 1, CY - R_PLATTER + 1, CX + R_PLATTER - 1, CY + R_PLATTER - 1)), 0, 360, fill=(188, 188, 184), width=s(2.2))
+    d.arc(B((CX - R_PLATTER + 1, CY - R_PLATTER + 1, CX + R_PLATTER - 1, CY + R_PLATTER - 1)), 200, 330, fill=(246, 246, 242), width=s(1.2))
+    d.arc(B((CX - R_PLATTER + 1, CY - R_PLATTER + 1, CX + R_PLATTER - 1, CY + R_PLATTER - 1)), 20, 150, fill=(96, 96, 94), width=s(1.2))
+    circle(d, (CX, CY), R_PLATTER, outline=(46, 46, 46), width=s(1))
+    circle(d, (CX, CY), R_VINYL + 1, outline=(26, 26, 28, 200), width=s(1))
 
     # the record: grooves, the gaps between tracks, lead-in and run-out
     circle(d, (CX, CY), R_VINYL, fill=(13, 13, 15))
@@ -637,15 +650,32 @@ def arm_rot(p, rot):
     return (px + (p[0] - px) * c - (p[1] - py) * sn, py + (p[0] - px) * sn + (p[1] - py) * c)
 
 
+# the S-shaped tube, as (along, across) fractions of the pivot-to-head distance: Bezier control points from the gimbal to the head.
+# Its last leg sets the headshell's offset angle (about 22 degrees, turned in towards the spindle, as on a real S-arm).
+ARM_S = ((0.036, 0.0), (0.40, 0.045), (0.72, -0.115), (1.0, 0.0))
+
+
+def arm_curve(A, n, steps=40):
+    """The tube's centre line in page coordinates."""
+    pts = [A(a * n, b * n) for a, b in ARM_S]
+    return bezier(*pts, n=steps)
+
+
 def arm_frame(rot=0.0):
-    """The arm's axis turned by rot: (A, Q, head, length) where A(a, b) is a point a along the arm from the pivot (negative: behind it,
-    where the counterweight is) and b across it, head the end of the tube, Q(a, b) the headshell's frame (straight on)."""
+    """The arm turned by rot: (A, Q, head, length) where A(a, b) is a point a along the pivot-to-head line from the pivot (negative:
+    behind it, where the counterweight is) and b across it, head the end of the tube, Q(a, b) the headshell's frame (along the tube's
+    last leg: the offset angle)."""
     hx, hy = arm_rot(STYLUS_HEAD, rot)
     px, py = PIVOT
     n = math.hypot(hx - px, hy - py)
     ux, uy = (hx - px) / n, (hy - py) / n
     A = local(PIVOT, ux, uy)
-    return A, local(local((hx, hy), ux, uy)(5, 0), ux, uy), (hx, hy), n   # the headshell straight on, in line with the arm
+    (a2, b2), (a3, b3) = ARM_S[2], ARM_S[3]
+    tx, ty = A((a3 - a2) * n, (b3 - b2) * n)
+    tx, ty = tx - px, ty - py
+    m = math.hypot(tx, ty)
+    vx, vy = tx / m, ty / m
+    return A, local(local((hx, hy), vx, vy)(5, 0), vx, vy), (hx, hy), n
 
 
 def stylus_tip(rot=0.0):
@@ -682,7 +712,7 @@ def arm_parts(im, rot=0.0):
     L = Image.new("RGBA", im.size, (0, 0, 0, 0))
     ld = ImageDraw.Draw(L)
     sh = lambda p: B((p[0] + 12, p[1] + 15))
-    ld.line([sh(A(-48, 0)), sh(head)], fill=(0, 0, 0, 130), width=s(10))
+    ld.line([sh(A(-48, 0)), sh(A(10, 0))] + [sh(p) for p in arm_curve(A, n)], fill=(0, 0, 0, 130), width=s(10), joint="curve")
     ld.polygon([sh(A(a, b)) for a, b in ((-18, -14), (-50, -14), (-50, 14), (-18, 14))], fill=(0, 0, 0, 130))
     ld.polygon([sh(Q(a, b)) for a, b in shell], fill=(0, 0, 0, 160))
     im.alpha_composite(L.filter(ImageFilter.GaussianBlur(s(5))))
@@ -694,8 +724,8 @@ def arm_parts(im, rot=0.0):
     for i in range(9):
         b = -12 + i * 3
         d.line([B(A(-19, b)), B(A(-20.5 if i % 2 else -22, b))], fill=(30, 30, 30), width=1)
-    # the tube, straight from the gimbal to the headshell, and its collar at the gimbal
-    tube(im, [A(10, 0), head], 8.5)
+    # the S-shaped tube from the gimbal to the headshell, and its collar at the gimbal
+    tube(im, arm_curve(A, n), 8.5)
     for a in (12, 15):
         circle(d, A(a, 0), 6.5, fill=(40, 40, 42))
     circle(d, A(13.5, 0), 4.2, fill=(176, 176, 170))
@@ -703,7 +733,8 @@ def arm_parts(im, rot=0.0):
     circle(d, (PIVOT[0] - 2, PIVOT[1] - 2), 2.4, fill=(240, 240, 236))
 
     # headshell: locking collar, offset body, finger lift, screws, cartridge, stylus guard
-    P = local(head, *((head[0] - PIVOT[0]) / n, (head[1] - PIVOT[1]) / n))
+    P = lambda a, b: Q(a - 5, b)                                       # the head's frame: Q starts 5 px past the head
+
     d.polygon([B(P(a, b)) for a, b in ((-4, -6.5), (5, -6.5), (5, 6.5), (-4, 6.5))], fill=(18, 18, 20))   # locking nut
     d.polygon([B(P(a, b)) for a, b in ((-2, -6.5), (0, -6.5), (0, 6.5), (-2, 6.5))], fill=(160, 160, 156))
     d.polygon([B(Q(a, b)) for a, b in shell], fill=(22, 22, 24), outline=(96, 96, 94))
@@ -728,17 +759,30 @@ def strobe_glow(im):
     L = layer()
     circle(ImageDraw.Draw(L), (gx, gy), 34, fill=(255, 50, 30, 210))
     im.alpha_composite(clip(L.filter(ImageFilter.GaussianBlur(s(10))), disc_mask((CX, CY), R_PLATTER, R_VINYL)))
-    for row, rr in enumerate((R_VINYL + 3.4, R_VINYL + 6.6, R_VINYL + 9.8, R_VINYL + 12.6)):
-        n = int(2 * math.pi * rr / (3.1 + row * 0.04))
+    for rr, n in STROBE_ROWS:
         for i in range(n):
             t = 2 * math.pi * i / n
             x, y = CX + rr * math.cos(t), CY + rr * math.sin(t)
             dist = math.hypot(x - gx, y - gy)
-            if dist < 30:
-                circle(d, (x, y), 1.0, fill=(255, 110, 80, int(255 * (1 - dist / 30))))
+            if dist < 34:
+                circle(d, (x, y), 1.1, fill=(255, 110, 80, int(255 * (1 - dist / 34))))
+    strobe_lamp(im, True)
+
+
+def strobe_lamp(im, lit):
+    """The strobe lamp's housing at the rim, bottom left: its lens dark red when off, bright when the platter turns. The background always
+    has the unlit lamp; the strobe's film strip (strobe_glow) lights it."""
+    d = ImageDraw.Draw(im, "RGBA")
+    a = math.radians(113)
+    hx, hy = CX + (R_PLATTER + 16) * math.cos(a), CY + (R_PLATTER + 16) * math.sin(a)
     circle(d, (hx, hy), 11, fill=(40, 40, 42))
-    circle(d, (hx, hy), 8, fill=(90, 26, 20))
-    circle(d, (hx - 2, hy - 2), 3, fill=(255, 140, 110, 200))
+    if lit:
+        circle(d, (hx, hy), 8, fill=(236, 54, 34))
+        circle(d, (hx - 2, hy - 2), 3, fill=(255, 190, 170, 220))
+    else:
+        circle(d, (hx, hy), 8, fill=(78, 26, 22))
+        circle(d, (hx - 2.5, hy - 2.5), 2.2, fill=(255, 255, 255, 46))
+        circle(d, (hx, hy), 8, outline=(20, 8, 6, 160), width=s(1))
 
 
 def small_key(im, box, label, led=None):
@@ -757,6 +801,24 @@ def small_key(im, box, label, led=None):
             ImageDraw.Draw(L).rectangle(B((lx0 - 2, ly - lh - 2, lx1 + 2, ly + lh + 2)), fill=(255, 40, 30, 170))
             im.alpha_composite(L.filter(ImageFilter.GaussianBlur(s(2.5))))
         d.rounded_rectangle(B((lx0, ly - lh, lx1, ly + lh)), s(1), fill=(255, 70, 50) if led else (90, 34, 30))
+
+
+PITCH_LED = (563, 408)   # the fader's centre mark: lights green only with the pitch at 0 (the skin: a film strip on `pitch`)
+
+
+def pitch_led(im, lit, c=None):
+    cx, cy = c or PITCH_LED
+    d = ImageDraw.Draw(im, "RGBA")
+    circle(d, (cx, cy), 3.6, fill=(36, 36, 36))
+    if lit:
+        L = Image.new("RGBA", im.size, (0, 0, 0, 0))
+        circle(ImageDraw.Draw(L), (cx, cy), 6, fill=(70, 255, 110, 200))
+        im.alpha_composite(L.filter(ImageFilter.GaussianBlur(s(2.5))))
+        circle(d, (cx, cy), 2.6, fill=(120, 255, 140))
+        circle(d, (cx - 0.8, cy - 0.8), 1, fill=(230, 255, 230))
+    else:
+        circle(d, (cx, cy), 2.6, fill=(28, 70, 40))
+        circle(d, (cx - 0.9, cy - 0.9), 0.9, fill=(255, 255, 255, 50))
 
 
 def fader_cap(im, cx, cy):
@@ -808,16 +870,17 @@ def deck_key(im, k, lit=False, pressed=False, box=None):
 
 def deck(im, now="OPEN SESAME - TREVOR NOVA", status="STREAMING", time_="0:42", pitch=0.42, playing=True):
     soft_shadow(im, (-20, -10, PLINTH_X, 640), 12, off=(9, 0), blur=10, alpha=210)
-    brushed(im, (-20, 0, PLINTH_X, H), (196, 196, 190), (148, 148, 142), r=12)
+    brushed(im, (-20, 0, PLINTH_X, H), (214, 214, 210), (166, 166, 162), r=12)      # satin silver, lit from the top
     d = ImageDraw.Draw(im, "RGBA")
     grad(im, (-20, H - 16, PLINTH_X, H), (148, 148, 142, 0), (40, 40, 38, 200))      # the plinth's front edge turns away from the light
     d.line(B((0, 1, PLINTH_X - 8, 1)), fill=(255, 255, 255, 120), width=s(1))
     d.line(B((PLINTH_X - 1, 10, PLINTH_X - 1, H - 10)), fill=(60, 60, 58, 220), width=s(1))
     d.line(B((PLINTH_X - 3, 10, PLINTH_X - 3, H - 10)), fill=(255, 255, 255, 90), width=s(1))
-    stains(im, (0, 0, PLINTH_X, H), 12, color=(60, 50, 40), alpha=(4, 10), size=(20, 60), seed=31)
-    dust(im, (0, 0, PLINTH_X, H), 600, light=False, hairs=4, seed=32, alpha=(16, 60))
+    stains(im, (0, 0, PLINTH_X, H), 10, color=(60, 50, 40), alpha=(3, 8), size=(20, 60), seed=31)
+    dust(im, (0, 0, PLINTH_X, H), 380, light=False, hairs=3, seed=32, alpha=(14, 50))
 
     platter_and_record(im)
+    strobe_lamp(im, False)
     if playing and LIVE:
         strobe_glow(im)
     label_display(im, now, status, time_)
@@ -841,7 +904,7 @@ def deck(im, now="OPEN SESAME - TREVOR NOVA", status="STREAMING", time_="0:42", 
         y = 302 + i * 26.5
         d.line(B((570, y, 576, y)), fill=(40, 40, 38), width=s(1))
         if lab == "0":
-            circle(d, (563, y), 2.6, fill=(255, 60, 40))
+            pitch_led(im, LIVE and abs(pitch - 0.5) < 0.003)
         else:
             text(im, (562, y), lab, 6.5, (40, 40, 38))
         if i in (0, 8):
@@ -1156,9 +1219,69 @@ def divider_tab(im, x0, x1, y0, label, arrow=None, seed=0):
         text(im, (cx, y0 + 17), label, 14, INK, spacing=0.6)
 
 
-SLEEVES = [(206, 184, 146), (228, 222, 206), (190, 162, 122), (220, 214, 196), (200, 176, 138), (230, 224, 210), (184, 156, 116),
-           (218, 212, 194)]
-DOTS = [(186, 62, 44), (46, 112, 118), (196, 150, 46), (104, 80, 136), (82, 128, 70), (54, 86, 146), (204, 108, 46), (182, 88, 120)]
+CREAM = (234, 232, 224)
+# An assortment, as a crate really is: (card colour, finish, print, text ink, sticker dot). The light cards take dark ink and the dark
+# ones cream, each pair at a contrast of 4.5:1 or better; the print stays in the strip above the text (or faint under it).
+SLEEVES = [((30, 29, 32), "gloss", "none", CREAM, (204, 64, 46)),               # black gloss jacket
+           ((198, 160, 112), "kraft", "none", INK, (46, 112, 118)),              # brown cardboard
+           ((140, 38, 32), "matte", "company", CREAM, (232, 196, 70)),          # a label's red company sleeve
+           ((232, 228, 214), "paper", "none", INK, (54, 86, 146)),              # white paper inner sleeve, yellowed
+           ((40, 88, 94), "faded", "none", CREAM, (226, 128, 52)),              # sun-faded teal
+           ((206, 154, 56), "matte", "stripes", INK, (140, 38, 32)),            # 70s mustard with a stripe band
+           ((30, 42, 74), "matte", "dots", CREAM, (232, 196, 70)),              # navy, printed with dots
+           ((196, 192, 180), "kraft", "company", INK, (196, 70, 46))]           # grey board company sleeve
+DOTS = [sl[4] for sl in SLEEVES]
+
+
+def sleeve_texture(im, i, box, col, finish_, print_, mask):
+    """One sleeve's card and print, clipped to its box."""
+    x0, y0, x1, y1 = box
+    r = random.Random(400 + i)
+    dark = sum(col) < 360
+    L = layer()
+    d = ImageDraw.Draw(L)
+    if finish_ == "kraft":                                         # fibres
+        for _ in range(900):
+            x, y = r.uniform(x0, x1), r.uniform(y0, y1)
+            ln, a = r.uniform(1.5, 6), r.uniform(-0.5, 0.5)
+            c = lerp(col, (255, 240, 210) if r.random() < 0.5 else (60, 40, 20), r.uniform(0.15, 0.35))
+            d.line(B((x, y, x + ln * math.cos(a), y + ln * math.sin(a))), fill=c + (r.randint(50, 120),), width=1)
+    elif finish_ == "paper":                                       # a soft crease and yellowing at the top edge
+        d.rectangle(B((x0, y0, x1, y0 + 8)), fill=(196, 168, 100, 40))
+        cx_ = r.uniform(x0 + 120, x1 - 120)
+        d.line(B((cx_, y0, cx_ + 14, y1)), fill=(255, 255, 255, 70), width=s(1.5))
+        d.line(B((cx_ + 2, y0, cx_ + 16, y1)), fill=(120, 100, 70, 40), width=s(1))
+    elif finish_ == "faded":                                       # the end that faced the window is bleached
+        pass
+    if print_ == "company":                                        # two printed rules and small type along the top
+        ink = lerp(col, CREAM if dark else (60, 40, 30), 0.55)
+        d.rectangle(B((x0, y0 + 3.5, x1, y0 + 4.5)), fill=ink + (220,))
+        d.rectangle(B((x0, y0 + 11, x1, y0 + 11.8)), fill=ink + (200,))
+        f = font(6.5)
+        t, x = "LONG PLAYING   ·   33⅓ R.P.M.   ·   STEREO   ·   HIGH FIDELITY   ·   ", x0 + 6 - r.uniform(0, 200)
+        while x < x1:
+            d.text((s(x), s(y0 + 7.8)), t, font=f, fill=ink + (230,), anchor="lm")
+            x += f.getlength(t) / S
+    elif print_ == "stripes":                                      # a three-colour band across the top
+        for k, c in enumerate(((140, 38, 32), (214, 96, 40), (120, 74, 34))):
+            d.rectangle(B((x0, y0 + 2 + k * 3.2, x1, y0 + 4.4 + k * 3.2)), fill=c + (235,))
+    elif print_ == "dots":                                         # a faint printed dot field
+        for yy in range(int(y0) + 4, int(y1), 9):
+            off = 4.5 if (yy // 9) % 2 else 0
+            for xx in range(int(x0) + 4, int(x1), 9):
+                circle(d, (xx + off, yy), 1.3, fill=(110, 134, 190, 46))
+    im.alpha_composite(clip(L, mask))
+    # the light: a sheen across a gloss card, a sun-bleached end on a faded one
+    L = layer()
+    d = ImageDraw.Draw(L)
+    if finish_ == "gloss":
+        d.polygon(B((x0 + 140, y0, x0 + 300, y0, x0 + 250, y1, x0 + 90, y1)), fill=(255, 255, 255, 26))
+        d.polygon(B((x0 + 320, y0, x0 + 350, y0, x0 + 300, y1, x0 + 270, y1)), fill=(255, 255, 255, 16))
+        L = L.filter(ImageFilter.GaussianBlur(s(10)))
+    elif finish_ == "faded":
+        d.rectangle(B((x1 - 260, y0, x1, y1)), fill=(190, 200, 186, 70))
+        L = L.filter(ImageFilter.GaussianBlur(s(60)))
+    im.alpha_composite(clip(L, mask))
 RESULTS = [("OPEN SESAME - TREVOR NOVA", "1996", "4:12"), ("AMEN BREAK - THE WINSTONS", "1969", "2:05"),
            ("ACID TRACKS - PHUTURE", "1987", "6:55"), ("DEEP SPACE - NOVA", "1994", "5:40"),
            ("MOVE YOUR BODY - MARSHALL", "1986", "3:30"), ("STRINGS OF LIFE - RHYTHIM", "1987", "5:12"),
@@ -1179,42 +1302,45 @@ def sleeves(im, selected=0):
             L = layer()
             ImageDraw.Draw(L).rectangle(B((x0, y - 9, x1, y + 2)), fill=(0, 0, 0, 150))   # the sleeve in front shades this one
             im.alpha_composite(L.filter(ImageFilter.GaussianBlur(s(5))))
-        col = SLEEVES[i]
+        col, finish_, print_, ink, dot = SLEEVES[i]
+        dark = sum(col) < 360
+        # each sleeve sits a little differently in the crate: a few pixels left or right, a slightly different height of card
+        jx0, jx1 = x0 + r.choice((0, 2, 4, 6)), x1 - r.choice((0, 2, 4, 6))
         if i == selected:
-            col = lerp(col, (252, 240, 214), 0.35)
             L = layer()
-            ImageDraw.Draw(L).rounded_rectangle(B((x0 - 2, y - 3, x1 + 2, y + 52)), s(4), fill=AMBER + (170,))
+            ImageDraw.Draw(L).rounded_rectangle(B((jx0 - 2, y - 3, jx1 + 2, y + 52)), s(4), fill=AMBER + (170,))
             im.alpha_composite(L.filter(ImageFilter.GaussianBlur(s(8))))
-        box = (x0, y, x1, y + 64)
-        grad(im, box, lerp(col, (255, 255, 255), 0.10), lerp(col, (0, 0, 0), 0.12), r=2)
-        if i in (2, 5):                                                            # a company sleeve's printed border
-            d.rectangle(B((x0, y + 5, x1, y + 6.5)), fill=lerp(DOTS[i], col, 0.55))
-            d.rectangle(B((x0, y + 8.5, x1, y + 9.5)), fill=lerp(DOTS[i], col, 0.65))
-        # ring wear: the record inside rubbing through
-        L = layer()
-        ImageDraw.Draw(L).ellipse(B(((x0 + x1) / 2 - 300, y + 30, (x0 + x1) / 2 + 300, y + 630)),
-                                  outline=(255, 255, 255, 44 if sum(col) < 600 else 0), width=s(5))
-        ImageDraw.Draw(L).ellipse(B(((x0 + x1) / 2 - 300, y + 30, (x0 + x1) / 2 + 300, y + 630)),
-                                  outline=(90, 70, 40, 22), width=s(2))
+        box = (jx0, y, jx1, y + 64)
+        hi = 0.16 if dark else 0.10
+        grad(im, box, lerp(col, (255, 255, 255), hi), lerp(col, (0, 0, 0), 0.16), r=2)
         sm = mask_layer()
-        ImageDraw.Draw(sm).rectangle(B(box), fill=255)
+        ImageDraw.Draw(sm).rounded_rectangle(B(box), s(2), fill=255)
+        sleeve_texture(im, i, box, col, finish_, print_, sm)
+        # ring wear: the record inside rubbing through (light on a dark card, dark on a light one)
+        L = layer()
+        ring = (255, 255, 255, 30) if dark else (70, 50, 30, 30)
+        ImageDraw.Draw(L).ellipse(B(((jx0 + jx1) / 2 - 300, y + 30, (jx0 + jx1) / 2 + 300, y + 630)), outline=ring, width=s(5))
         im.alpha_composite(clip(L.filter(ImageFilter.GaussianBlur(s(1.5))), sm))
-        stains(im, box, 3, seed=50 + i, size=(8, 24), alpha=(6, 18), mask=sm)
-        dust(im, box, 120, light=False, seed=60 + i, alpha=(20, 70))
-        d.line(B((x0 + 2, y + 1, x1 - 2, y + 1)), fill=(255, 255, 255, 140), width=s(1))
-        for _ in range(30):                                                        # frayed, worn top edge
-            wx = r.uniform(x0 + 4, x1 - 4)
-            d.line(B((wx, y + 1, wx + r.uniform(4, 22), y + 1)), fill=lerp(col, (110, 90, 64), 0.45) + (130,), width=s(1))
-        cx_ding = r.choice((x0 + 3, x1 - 3))
-        d.polygon(B((cx_ding - 4, y, cx_ding + 4, y, cx_ding, y + 5)), fill=lerp(col, (90, 70, 46), 0.5) + (120,))
+        stains(im, box, 3, seed=50 + i, size=(8, 24), alpha=(6, 18) if not dark else (4, 10), mask=sm)
+        dust(im, box, 120, light=dark, seed=60 + i, alpha=(20, 70) if not dark else (14, 46))
+        # the card's top edge catches the light; worn edges show the board underneath
+        d.line(B((jx0 + 2, y + 1, jx1 - 2, y + 1)), fill=(255, 255, 255, 110 if dark else 140), width=s(1))
+        edge = lerp(col, (200, 186, 160) if dark else (110, 90, 64), 0.5)
+        for _ in range(30):
+            wx = r.uniform(jx0 + 4, jx1 - 4)
+            d.line(B((wx, y + 1, wx + r.uniform(4, 22), y + 1)), fill=edge + (130,), width=s(1))
+        cx_ding = r.choice((jx0 + 3, jx1 - 3))
+        d.polygon(B((cx_ding - 4, y, cx_ding + 4, y, cx_ding, y + 5)), fill=edge + (140,))
         if i == selected:
-            d.line(B((x0 + 2, y + 1, x1 - 2, y + 1)), fill=AMBER, width=s(2))
+            d.line(B((jx0 + 2, y + 1, jx1 - 2, y + 1)), fill=AMBER, width=s(2))
         cy = y + 24
-        circle(d, (680, cy), 9, fill=DOTS[i])
-        circle(d, (680, cy), 9, outline=(0, 0, 0, 60), width=s(1))
+        soft_shadow(im, (680 - 9, cy - 9, 680 + 9, cy + 9), off=(0.6, 1.2), blur=1.2, alpha=90, ellipse=True)
+        circle(d, (680, cy), 9, fill=dot)                                          # a colour-code sticker
+        circle(d, (678, cy - 2.5), 4, fill=(255, 255, 255, 46))
+        circle(d, (680, cy), 9, outline=(0, 0, 0, 70), width=s(1))
         if not LIVE:
             continue
-        text(im, (704, cy), "%02d  %s  %s  %s" % (i + 1, title, year, length), 17, INK, anchor="lm")
+        text(im, (704, cy), "%02d  %s  %s  %s" % (i + 1, title, year, length), 17, ink, anchor="lm")
 
 
 def page_play():

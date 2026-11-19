@@ -623,6 +623,7 @@ static bool sticky_on(Engine *p, int i) {
 /* The deck skin's record turns only on a 64-bit (Gen2) MPC; a dragged tonearm seeks once it has rested this long. */
 static const bool SPIN_RECORD = sizeof(void *) == 8;
 static const long long ARM_REST_MS = 350;
+static const float PITCH_DETENT = 0.012f;   // the pitch fader's centre click (plain -1..1)
 
 /* the deck's playback rate: 33 or 45, times the pitch fader (+-8%, or +-16% with x2) */
 static float rate_of(const Engine *p) {
@@ -760,7 +761,10 @@ public:
         {
             if (index == P_PITCH)
             {
-                e_.pitch = std::max(-1.0f, std::min(1.0f, plain));
+                // a centre click: within PITCH_DETENT of 0 it is 0 (the skin's green zero LED lights only there; the host is told on the
+                // next pass). Smaller than a Q-Link tick (2/128), so a turn still moves it off 0.
+                const float v = std::max(-1.0f, std::min(1.0f, plain));
+                e_.pitch = std::fabs(v) < PITCH_DETENT ? 0.0f : v;
                 rate_.store(rate_of(&e_));
                 dirty_.store(true);
                 return;

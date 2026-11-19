@@ -213,6 +213,17 @@ class Deck:
         frames, x, y, w, h = self.made["strobe"]
         self.film(p, "play_state", "strobe", frames, x, y, w, h)
 
+    def pitch_led(self, p):
+        """The fader's zero LED: a film strip on `pitch` (201 frames over -1..1), lit only in the middle frame: with the pitch at 0 (the plugin
+        snaps the fader to 0 within +-0.012 of it, a centre click, so it can get back there)."""
+        if "pitch_led" not in self.made:
+            cx, cy = D.PITCH_LED
+            lit = sprite((cx - 4, cy - 4, cx + 4, cy + 4), 6, lambda im, b: D.pitch_led(im, True, ((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)))
+            dark = Image.new("RGBA", lit[0].size, (0, 0, 0, 0))
+            self.made["pitch_led"] = ([dark] * 100 + [lit[0]] + [dark] * 100,) + lit[1:]
+        frames, x, y, w, h = self.made["pitch_led"]
+        self.film(p, "pitch", "pitch_led", frames, x, y, w, h)
+
     def vu(self, p):
         for param, box in (("level_l", D.VU_L), ("level_r", D.VU_R)):
             nm = "vu_" + param
@@ -312,6 +323,7 @@ class Deck:
         self.label(p)
         self.strobe(p)
         self.arm(p)
+        self.pitch_led(p)      # under the fader, so a touch there still moves the fader
         self.pitch_fader(p)
         self.key(p, "pitch_reset", (528, 528, 546, 546), lambda im, b, on: D.reset_button(im, (b[0] + b[2]) / 2, (b[1] + b[3]) / 2, pressed=on), pad=6)
         for k in D.DECK_KEYS:
@@ -341,10 +353,12 @@ class Deck:
         if pressed:
             ImageDraw.Draw(im, "RGBA").rounded_rectangle(D.B((b[0] + 1, b[1] + 1, b[2] - 1, b[3] - 3)), D.s(4), fill=(0, 0, 0, 60))
 
-    def row_def(self):
+    def row_def(self, light=False):
+        """A result row: the playing one lit, its text in the sleeve's ink (cream on the dark sleeves, D.SLEEVES)."""
         T = self.T
         w, h = 592, 49
-        if "row" not in self.made:
+        key = "dk_row_lt" if light else "dk_row"
+        if key not in self.made:
             with canvas(w, h) as im:
                 d = ImageDraw.Draw(im, "RGBA")
                 L = Image.new("RGBA", im.size, (0, 0, 0, 0))
@@ -353,14 +367,15 @@ class Deck:
                 im.alpha_composite(L.filter(ImageFilter.GaussianBlur(D.s(3))))
                 d.line(D.B((2, 1, w - 2, 1)), fill=D.AMBER, width=D.s(2))
             on = self.save(warm(im.resize((w, h), Image.LANCZOS)), "row_on.png")
-            T.add_def("dk_row", T.component([
+            T.add_def(key, T.component([
                 T.entry("Button", "Button", {"version": 1, "onImage": on, "offImage": CLEAR, "buttonId": 1, "numButtonsInGroup": 1, "handleName": "Data"},
                         "0 0 %d %d" % (w, h)),
-                T.entry("Value", "Label", {"version": 1, "textStyle": T.text_style(h=T.th(17), colour=INK, just="left verticallyCentred", case="Original"),
+                T.entry("Value", "Label", {"version": 1, "textStyle": T.text_style(h=T.th(17), colour=CREAM if light else INK,
+                                                                                    just="left verticallyCentred", case="Original"),
                                            "type": "Value", "handleName": "Data"}, "46 0 %d %d" % (w - 56, h)),
             ], actions=[T.act("Mouse Down", "Toggle Switch"), T.act("Enter Pressed", "Toggle Switch")]))
-            self.made["row"] = (w, h)
-        return "dk_row", w, h
+            self.made[key] = (w, h)
+        return key, w, h
 
     def page_play(self):
         T = self.T
@@ -380,8 +395,8 @@ class Deck:
         self.tap(p, "page_prev", (664, 12, 784, 62))
         self.tap(p, "page_next", (1112, 12, 1232, 62))
         p.lcd_text("page", 884, 33, 128, size=14, h=24, just=CEN, handle="Text", colour=INK)
-        rk, w, h = self.row_def()
         for i in range(8):
+            rk, w, h = self.row_def(light=D.SLEEVES[i][3] == D.CREAM)
             p.kids.append(T.entry("result %d" % (i + 1), rk, {"version": 1, "handleName": "Data"}, "654 %d %d %d" % (D.ROW0 + i * D.ROW_H, w, h),
                                   remap=T.P("result_%d" % (i + 1)), focus="Yes" if i == 0 else "No"))
         D.LIVE = True
