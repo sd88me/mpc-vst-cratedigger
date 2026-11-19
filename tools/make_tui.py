@@ -500,7 +500,8 @@ def preview(pages, tabs):
         for e in p.kids:
             cd = e["componentData"]
             x, y, w, h = [float(v) for v in e["bounds"]["bounds"].split()]
-            if "--nokb" in sys.argv and (cd["name"] == "noop" or cd["type"].startswith("cd_kb_") or cd["type"] == "cd_kbplate"):
+            if "--nokb" in sys.argv and (cd["name"] == "noop" or cd["type"].startswith("cd_kb_") or cd["type"] == "cd_kbplate"
+                                         or "IndexedEnabling/1/2/%s" % P("kb") in e["bounds"].get("additionalInvalidatingHandles", [])):
                 continue
             if cd["type"] == "Image" and cd["data"].get("imageType") == "FilmStrip":
                 st = Image.open(os.path.join(OUT, cd["data"]["image"])).convert("RGBA")

@@ -6,8 +6,9 @@
 style, decade, region and country, and it finds random releases on Discogs, then streams a playable version (usually from YouTube) so you can
 audition and resample them. It can also search YouTube for text you type, or pick uploads from your own YouTube channels and playlists.
 
-The screen is styled after a vintage MPC: a green LCD that shows what is playing, the status, the time and your filters, big knobs and keys,
-a GAIN fader and a stereo level meter. Everything is reachable from the Q-Links.
+It has two looks, switched with one key: a **vintage sampler** (a green LCD that shows what is playing, the status, the time and your filters,
+big knobs and keys, a GAIN fader and a stereo level meter) and a **deck** (a turntable, a record crate and an amp; see [Deck look](#deck-look)).
+Everything is reachable from the Q-Links.
 
 ![PLAY](docs/screenshots/play.png)
 
@@ -25,6 +26,7 @@ a GAIN fader and a stereo level meter. Everything is reachable from the Q-Links.
   1.x still load.
 
 ![FILTERS](docs/screenshots/filters.png)
+![FIND](docs/screenshots/find.png)
 
 ## Deck look
 A second look, switched with **DECK LOOK** (top of every sampler page; on the deck it is on FIND). It applies to every Crate Digger on the MPC
@@ -33,9 +35,9 @@ and stays until you switch back.
 ![Deck: PLAY](docs/screenshots/deck-play.png)
 
 - **A turntable.** The record's label is a display (status, what is playing, the time) with the cover shown as dots behind its glass.
-  The record turns while it plays (64-bit MPCs; on 32-bit ones it stays still to save CPU).
+  The record turns while it plays (64-bit MPCs; on 32-bit ones it stays still to save CPU), and the strobe lamp lights the platter's dots.
 - **The tonearm follows the track; drag it to move.** Drag it up towards the label to go forward, down to go back: the needle drops where you let go.
-- **A real pitch fader** (+-8 %, RESET) and **33 / 45**: the track plays faster or slower, pitch and tempo together, as a turntable does.
+- **A real pitch fader** (+-8 %, RESET, a centre click and a green light at 0) and **33 / 45**: the track plays faster or slower, pitch and tempo together, as a turntable does.
 - **The crate** holds the results as an assortment of sleeves (text coloured to stay readable on each), with PAGE tabs; an amp in front of it has the VU meters, GAIN, the search status and SEARCH.
 - **FILTERS and FIND** are consoles that match the amp: a fader with up / down keys for each filter, the source keys and the length faders.
 - **Q-Links on PLAY:** pitch, gain, the results page and the tonearm (turn it to move through the track), then the transport. The deck draws no
@@ -70,7 +72,6 @@ older Crate Digger (1.x) is replaced and your `channels.txt` is kept. Add `-y` t
 
 The plugin folder is about 125 MB (armv7) or 180 MB (aarch64): it carries its own yt-dlp, Python and ffmpeg and needs no other setup. To upgrade,
 replace the whole plugin folder.
-![FIND](docs/screenshots/find.png)
 
 ## Using it
 1. **FILTERS:** turn a knob (or tap its arrows) to pick a genre, style, decade, region and country; each choice shows on the LCD above its knob.
@@ -103,14 +104,15 @@ It resolves and streams Discogs results through yt-dlp and ffmpeg on a worker th
 ring. `src/sdk/CrateDiggerPlugin.cpp` is the plugin and `tools/make_tui.py` draws the skin.
 
 ## Build
-Needs Docker. `./build-sdk.sh` builds both CPUs into `build/sdk/`; `tools/package.sh` makes the two zips in `dist/`;
-`tests/run.sh` runs the offline test. The engine bundles (yt-dlp, Python, ffmpeg) are taken from the previous release the first time.
+Needs Docker and the MPC Plugin SDK (`MPC_SDK`). `./build-sdk.sh` builds both CPUs into `build/sdk/`; `tools/package.sh` makes the two
+plugin-folder zips in `dist/` and `tools/package_catalog.sh` the two catalog zips; `tests/run.sh` runs the offline test and `tests/daemon_test.py`
+the search daemon's. `tools/make_tui.py --preview` draws both looks offline into `build/preview/`. The engine bundles (yt-dlp, Python, ffmpeg) are taken from the previous release the first time.
 
 ## Known limitations
 - A browser and player, not a synth: it makes no MIDI notes and ignores MIDI input.
 - Playback depends on yt-dlp resolving the linked sources live on the device; those paths break upstream from time to time, and a result can be
   unavailable in your region.
-- Tested on an MPC Live III and a Force.
+- 2.2 is tested on an MPC Live III. Earlier versions also ran on a Force; 2.1 and 2.2 are not yet tested on one (32-bit).
 
 ## Credits and licence
 MIT, see `LICENSE`. The streaming core is MIT licensed by Charles Vestal (`UPSTREAM_LICENSE.txt`, `UPSTREAM_THIRD_PARTY_NOTICES.md`). The channel
