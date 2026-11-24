@@ -53,5 +53,7 @@
   "firmware": "az01 base 5.0.17",
   "date": "2026-11-07",
   "note": "armv7 build installed over 1.3.0: loads, plays and searches as before with the sh -c change; the no-channel message names the channels.txt folder."
- }
+ },
+  {"version": "2.2.1", "device": "Akai MPC Live III (Gen2)", "firmware": "3.10", "date": "2026-11-24",
+    "note": "Release zip installed on the unit from the draft release; loads, skin and sound checked. Discogs search and both looks checked."}
 ]
