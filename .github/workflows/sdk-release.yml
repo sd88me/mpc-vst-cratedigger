@@ -1,0 +1,89 @@
+# Builds Crate Digger on the Akai SDK front end (build-sdk.sh) for Gen1 (armv7) and Gen2 (aarch64) under QEMU, makes the plugin-folder
+# zips (tools/package.sh) and the catalog zips (tools/package_catalog.sh), checks the catalog zips, and attaches all four to a DRAFT
+# release. A person installs a draft's zip on a device and publishes it. This is what the 2.x releases need; vst-release.yml here is the
+# older wrapper build. Move the pin (the checkout ref) to the current main of open-mpc/mpc-vst-plugins before each release.
+name: Release (SDK draft)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, e.g. 2.2.1 (written into plugin.json for this build)
+        required: true
+      dry_run:
+        description: Zips as run artifacts only, no draft release
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: cratedigger-vst-v${{ inputs.version }}
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Refuse to touch a published release
+        if: ${{ !inputs.dry_run }}
+        run: |
+          state=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+                    --jq ".[] | select(.tag_name == \"$TAG\") | if .draft then \"draft\" else \"published\" end" | head -1)
+          echo "existing release for $TAG: ${state:-none}"
+          [ "$state" != published ] || { echo "::error::$TAG is already published - bump the version"; exit 1; }
+
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+
+      - name: Check out open-mpc/mpc-vst-plugins (tools and the SDK)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          repository: open-mpc/mpc-vst-plugins
+          ref: 1777e405a4c15c380f7a1b1adf673dd73c1a0585
+          submodules: recursive
+          path: mpc-vst-plugins
+
+      - uses: docker/setup-qemu-action@v3
+
+      - name: Install Pillow
+        run: python3 -m pip install --quiet pillow
+
+      - name: Set the version
+        run: |
+          python3 - <<'PY'
+          import json, os
+          m = json.load(open("plugin.json")); m["version"] = os.environ["VERSION"]
+          json.dump(m, open("plugin.json", "w"), indent=2)
+          PY
+
+      - name: Build and package (plugin-folder zips, then catalog zips)
+        env:
+          MPC_SDK: ${{ github.workspace }}/mpc-vst-plugins/vendor/mpc-plugin-builder-sdk
+          MPC_VST: ${{ github.workspace }}/mpc-vst-plugins
+        run: |
+          tools/package.sh
+          tools/package_catalog.sh
+
+      - name: Check the catalog zips
+        run: |
+          for z in dist/Crate-Digger-$VERSION-mpc-*.zip; do
+            python3 mpc-vst-plugins/tools/catalog_check.py "$z" --catalog --expect-id crate-digger --expect-repo sd88me/mpc-vst-cratedigger
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crate-digger-${{ inputs.version }}
+          path: dist/*.zip
+
+      - name: Create or update the draft release
+        if: ${{ !inputs.dry_run }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --draft --title "Crate Digger $VERSION" \
+              --notes "Crate Digger $VERSION: relicensed to GPL-3.0-or-later (the streaming core stays under Charles Vestal's MIT licence, see UPSTREAM_LICENSE.txt). No functional changes. Install steps are in INSTALL.txt in each package."
+          fi
+          gh release upload "$TAG" dist/*.zip --clobber
