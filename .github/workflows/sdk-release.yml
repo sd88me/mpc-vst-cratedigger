@@ -60,6 +60,9 @@ jobs:
           json.dump(m, open("plugin.json", "w"), indent=2)
           PY
 
+      - name: Generate the native skin (skins/ is gitignored; the build packs it when present)
+        run: python3 tools/make_tui.py
+
       - name: Build and package (plugin-folder zips, then catalog zips)
         env:
           MPC_SDK: ${{ github.workspace }}/mpc-vst-plugins/vendor/mpc-plugin-builder-sdk
