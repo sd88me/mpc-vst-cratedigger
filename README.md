@@ -115,5 +115,5 @@ the search daemon's. `tools/make_tui.py --preview` draws both looks offline into
 - 2.2 is tested on an MPC Live III. Earlier versions also ran on a Force; 2.1 and 2.2 are not yet tested on one (32-bit).
 
 ## Credits and licence
-MIT, see `LICENSE`. The streaming core is MIT licensed by Charles Vestal (`UPSTREAM_LICENSE.txt`, `UPSTREAM_THIRD_PARTY_NOTICES.md`). The channel
+Free software under the GNU General Public License, version 3 or later: see [LICENSE](LICENSE). It was MIT before 2026-11-24; code contributed under MIT keeps that notice ([LICENSE-MIT](LICENSE-MIT)). The streaming core is MIT licensed by Charles Vestal (`UPSTREAM_LICENSE.txt`, `UPSTREAM_THIRD_PARTY_NOTICES.md`) and stays under that licence. The channel
 source was started by PotentialBreakfast (PR #21).

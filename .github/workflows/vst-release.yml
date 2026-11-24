@@ -31,7 +31,7 @@ jobs:
       user_data: cratedigger/channels.txt
       zig: 0.14.1
       plugin_id: crate-digger
-      license: MIT
+      license: GPL-3.0-or-later
       requires: A network connection (streams from Discogs and the web)
       about: Dig for records by genre, style, decade and country on Discogs, then stream and play them into your MPC track. Needs a network connection.
       dry_run: ${{ inputs.dry_run }}

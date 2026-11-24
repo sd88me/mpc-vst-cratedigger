@@ -31,7 +31,7 @@ PY
   printf '<PLUGIN name="Crate Digger" descriptiveName="Crate Digger" format="VST" category="Synth" manufacturer="sd88me" version="%s" file="cratedigger.so" uid="43724467" isInstrument="1" fileTime="0" infoUpdateTime="0" numInputs="0" numOutputs="2" isShell="0"/>\n' "$VER" > "$st/entry.xml"
   python3 "$MPC_VST/tools/release.py" --so "$st/cratedigger.so" --skin "$st/$DIR" --entry "$st/entry.xml" --version "$VER" \
     --extra "$st/Content:Content" --user-data channels.txt \
-    --repo sd88me/mpc-vst-cratedigger --license MIT --id crate-digger \
+    --repo sd88me/mpc-vst-cratedigger --license GPL-3.0-or-later --id crate-digger \
     --requires "A network connection (streams from Discogs and the web)" \
     --about "Dig for records by genre, style, decade, region and country on Discogs, then stream and play them into your MPC track. Needs a network connection." \
     -o "$st/dist"
