@@ -9,6 +9,6 @@
   "category": "Synth",
   "description": "Dig for records on Discogs and play them from YouTube into an MPC track.",
   "author": "sd88me",
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "url": "https://github.com/sd88me/mpc-vst-cratedigger"
 }
